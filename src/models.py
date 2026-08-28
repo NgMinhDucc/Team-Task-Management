@@ -120,7 +120,7 @@ class ProjectsAssignments(SQLModel, table=True):
 class TaskBase(SQLModel):
     task_name: str = Field(unique=True)
     task_description: str | None = None
-    task_deadline: datetime = Field(
+    task_deadline: datetime | None = Field(
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True)
