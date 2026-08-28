@@ -8,7 +8,7 @@ from sqlmodel import select
 from datetime import datetime, timedelta, timezone 
 
 from database import SessionDep
-from models import Users, Projects, TokenData
+from models import Users, Projects, Tasks, TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # the parameter is only useful in swagger ui
 Tokenn = Annotated[str, Depends(oauth2_scheme)]
@@ -97,3 +97,14 @@ def get_all_projects(session: SessionDep):
     return projects
 
 AllProjects = Annotated[Projects, Depends(get_all_projects)] # <-- need fix
+
+def get_task(session: SessionDep, task_name: str):
+    task = session.exec(select(Tasks).where(Tasks.task_name == task_name)).first()
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found"
+        )
+    return task
+
+CurrentTask = Annotated[Tasks, Depends(get_task)]

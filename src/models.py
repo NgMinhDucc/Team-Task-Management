@@ -136,7 +136,7 @@ class TaskBase(SQLModel):
     
 class Tasks(TaskBase, table=True):
     task_id: int | None = Field(default=None, primary_key=True)
-    status: str | None = Field(default="TO DO")
+    task_status: str | None = Field(default="TO DO")
     task_created_at: datetime = Field(
         default=None,
         sa_column=Column(
@@ -162,12 +162,26 @@ class Tasks(TaskBase, table=True):
 class CreateTask(TaskBase):
     pass
 
+class TaskPublic(SQLModel):
+    task_name: str
+    task_description: str
+    task_status: str
+    task_deadline: datetime | None
+    task_created_at: datetime
+    task_last_updated_at: datetime | None
+
 class UpdateTask(SQLModel):
     task_name: str | None = None
     task_description: str | None = None
-    task_content: str | None = None
     task_deadline: datetime | None = None
     task_status: str | None = None
+    
+    @field_validator("task_deadline", mode="after")
+    @classmethod
+    def check_timezone(cls, tz: datetime) -> datetime:
+        if tz is None or tz.tzinfo is None:
+            raise ValueError("doesn't have timezone information")
+        return tz
 
 class TasksAssignments(SQLModel, table=True):
     user_id: int = Field(primary_key=True, foreign_key="users.user_id")
