@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship
+from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
 from datetime import datetime
 from pydantic import EmailStr, field_validator
 
@@ -20,7 +20,7 @@ class Users(UserBase, table=True):
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True),
-            # server_default=func.now(),
+            server_default=func.now(),
             onupdate=func.now()
         )
     )
@@ -60,7 +60,7 @@ class ProjectBase(SQLModel):
     @field_validator("project_deadline", mode="after")
     @classmethod
     def check_timezone(cls, tz: datetime) -> datetime:
-        if tz is None or tz.tzinfo is None:
+        if tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
     
@@ -77,6 +77,7 @@ class Projects(ProjectBase, table=True):
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True),
+            server_default=func.now(),
             onupdate=func.now()
         )
     )
@@ -103,22 +104,29 @@ class UpdateProject(SQLModel):
     @field_validator("project_deadline", mode="after")
     @classmethod
     def check_timezone(cls, tz: datetime) -> datetime:
-        if tz is None or tz.tzinfo is None:
+        if tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
 
 class ProjectsAssignments(SQLModel, table=True):
+    # composite primary key (user_id, project_id)
     user_id: int = Field(primary_key=True, foreign_key="users.user_id")
     upa: Users | None = Relationship(back_populates="users_project_assignment")
     
     project_id: int = Field(primary_key=True, foreign_key="projects.project_id")
     ppa: Projects | None = Relationship(back_populates="projects_project_assignment")
     
-    project_assigned_at: datetime
-    role: str
+    project_assigned_at: datetime = Field(
+        default=None,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )
+    role: str # owner, admin, member
 
 class TaskBase(SQLModel):
-    task_name: str = Field(unique=True)
+    task_name: str = Field()
     task_description: str | None = None
     task_deadline: datetime | None = Field(
         default=None,
@@ -130,13 +138,13 @@ class TaskBase(SQLModel):
     @field_validator("task_deadline", mode="after")
     @classmethod
     def check_timezone(cls, tz: datetime) -> datetime:
-        if tz is None or tz.tzinfo is None:
+        if tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
     
 class Tasks(TaskBase, table=True):
     task_id: int | None = Field(default=None, primary_key=True)
-    task_status: str | None = Field(default="TO DO")
+    task_status: str | None = Field(default="TO DO") # to do, in progress, in review, done
     task_created_at: datetime = Field(
         default=None,
         sa_column=Column(
@@ -148,6 +156,7 @@ class Tasks(TaskBase, table=True):
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True),
+            server_default=func.now(),
             onupdate=func.now()
         )
     )
@@ -158,6 +167,14 @@ class Tasks(TaskBase, table=True):
     tasks_task_assignment: list["TasksAssignments"] | None = Relationship(back_populates="tta")
     
     tasks_comment: list["Comments"] | None = Relationship(back_populates="tc")
+    
+    __table_args__ = (
+        UniqueConstraint(
+            "task_name",
+            "project_id",
+            name="unique_task_name_in_one_project"
+        )
+    )
     
 class CreateTask(TaskBase):
     pass
@@ -179,18 +196,25 @@ class UpdateTask(SQLModel):
     @field_validator("task_deadline", mode="after")
     @classmethod
     def check_timezone(cls, tz: datetime) -> datetime:
-        if tz is None or tz.tzinfo is None:
+        if tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
 
 class TasksAssignments(SQLModel, table=True):
+    # composite primary key (user_id, task_id)
     user_id: int = Field(primary_key=True, foreign_key="users.user_id")
     uta: Users | None = Relationship(back_populates="users_task_assignment")
     
     task_id: int = Field(primary_key=True, foreign_key="tasks.task_id")
     tta: Tasks | None = Relationship(back_populates="tasks_task_assignment")
     
-    task_assigned_at: datetime
+    task_assigned_at: datetime = Field(
+        default=None,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )
     
 class CommentBase(SQLModel):
     comment_content: str
@@ -208,6 +232,7 @@ class Comments(CommentBase, table=True):
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True),
+            server_default=func.now(),
             onupdate=func.now()
         )
     )
