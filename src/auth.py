@@ -8,7 +8,7 @@ from sqlmodel import select
 from datetime import datetime, timedelta, timezone 
 
 from database import SessionDep
-from models import Users, Projects, Tasks, TokenData
+from models import Users, Projects, ProjectsAssignments, Tasks, TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # the parameter is only useful in swagger ui
 Tokenn = Annotated[str, Depends(oauth2_scheme)]
@@ -108,3 +108,11 @@ def get_task(session: SessionDep, task_name: str):
     return task
 
 CurrentTask = Annotated[Tasks, Depends(get_task)]
+
+def get_role(session: SessionDep, user_id: int, project_id: int): # need fix: need to return role column
+    role = session.exec(
+        select(ProjectsAssignments.role).where(
+            ProjectsAssignments.user_id == user_id and ProjectsAssignments.project_id == project_id
+        )
+    ).first()
+    return role
