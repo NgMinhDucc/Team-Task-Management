@@ -173,7 +173,7 @@ class Tasks(TaskBase, table=True):
             "task_name",
             "project_id",
             name="unique_task_name_in_one_project"
-        )
+        ),
     )
     
 class CreateTask(TaskBase):
