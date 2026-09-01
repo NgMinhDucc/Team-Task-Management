@@ -44,13 +44,13 @@ class UpdateUser(SQLModel):
     email: str | None = None
     
 class ChangePassword(SQLModel):
-    current_password: str # must be checked with the current hashed one
+    current_password: str #* must be checked with the current hashed one
     new_password: str
 
 class ProjectBase(SQLModel):
     project_name: str = Field(unique=True)
     project_description: str | None = None
-    project_deadline: datetime | None = Field( # can be set deadline some time after being created
+    project_deadline: datetime | None = Field( #* can be set deadline some time after being created
         default=None,
         sa_column=Column(
             TIMESTAMP(timezone=True)
@@ -91,7 +91,7 @@ class CreateProject(ProjectBase):
 
 class ProjectPublic(SQLModel):
     project_name: str
-    project_description: str
+    project_description: str | None
     project_deadline: datetime | None
     project_created_at: datetime
     project_last_updated_at: datetime | None
