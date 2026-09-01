@@ -74,4 +74,4 @@ async def change_password(session: SessionDep, current_user: CurrentUser, change
 async def search(current_user: CurrentUser, searched_user: SearchedUser):
     return searched_user
 
-# need a forgot password api, delete account api
+# todo: add forgot password api and delete account api
