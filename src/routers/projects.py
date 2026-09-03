@@ -12,7 +12,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
     new_project = Projects(**project_data)
     
     session.add(new_project)
-    session.flush() #* temporary data
+    session.flush() # note: temporary data
     
     if current_user.user_id is None or new_project.project_id is None:
         raise HTTPException(
@@ -27,7 +27,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
     )
     
     session.add(project_owned_by)
-    session.commit() #* permanent data
+    session.commit() # note: permanent data
     
     session.refresh(new_project)
     session.refresh(project_owned_by)
@@ -63,12 +63,30 @@ async def update_projects(
     
     return current_project_for_update
 
-@router.get("/my-projects", response_model=ProjectPublic) #! ValueError caused by response_model and AllProjects
-async def get_projects(current_user: CurrentUser, all_projects: AllProjects):
-    return all_projects
-
-@router.get("/my-projects/{project_name}", response_model=ProjectPublic)
+@router.get("/my-projects/{project_name}", response_model=ProjectPublic) # error: lack data
 async def get_project(current_user: CurrentUser, current_project: CurrentProject):
     return current_project
 
-# todo: add a delete project api
+@router.get("/my-projects", response_model=ProjectPublic) # error: ValueError caused by response_model and AllProjects
+async def get_projects(current_user: CurrentUser, all_projects: AllProjects):
+    return all_projects
+
+@router.delete("/delete-projects/{project_name}")
+async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
+    if current_user.user_id is None or current_project.project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID or Project ID is missing"
+        )
+        
+    role = get_role(session, current_user.user_id, current_project.project_id)
+    if role != "OWNER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to perform this action"
+        )
+        
+    session.delete(current_project)
+    session.commit()
+    
+    return "project deleted successfully"
