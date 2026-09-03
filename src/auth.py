@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from database import SessionDep
 from models import Users, Projects, ProjectsAssignments, Tasks, TokenData
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") #* the parameter is only useful in swagger ui
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # note: the parameter is only useful in swagger ui
 Tokenn = Annotated[str, Depends(oauth2_scheme)]
 
 password_hash = PasswordHash.recommended()
@@ -29,7 +29,7 @@ def get_user(session: SessionDep, user_name: str):
 def authenticate_user(session: SessionDep, user_name: str, password: str):
     user = get_user(session, user_name)
     if not user:
-        verify_password(password, DUMMY_HASH) #* prevent timing attack
+        verify_password(password, DUMMY_HASH) # note: prevent timing attack
         return False
     if not verify_password(password, user.hashed_password):
         return False
@@ -76,7 +76,7 @@ CurrentUser = Annotated[Users, Depends(get_current_user)]
 
 SearchedUser = Annotated[Users, Depends(get_user)]
 
-def get_project(session: SessionDep, project_name: str):
+def get_project(session: SessionDep, project_name: str): # error
     project = session.exec(select(Projects).where(Projects.project_name == project_name)).first()
     if project is None:
         raise HTTPException(
@@ -87,7 +87,7 @@ def get_project(session: SessionDep, project_name: str):
 
 CurrentProject = Annotated[Projects, Depends(get_project)]
 
-#* use pessmistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
+# note: use pessimistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
 def get_project_for_update(session: SessionDep, project_name: str):
     project = session.exec(
         select(
@@ -114,7 +114,7 @@ def get_all_projects(session: SessionDep):
         )
     return projects
 
-AllProjects = Annotated[Projects, Depends(get_all_projects)] #! error
+AllProjects = Annotated[Projects, Depends(get_all_projects)] # error
 
 def get_task(session: SessionDep, task_name: str):
     task = session.exec(select(Tasks).where(Tasks.task_name == task_name)).first()
