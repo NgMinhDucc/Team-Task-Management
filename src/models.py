@@ -112,8 +112,8 @@ class ProjectPublic(SQLModel):
     project_deadline: datetime | None
     project_created_at: datetime
     project_last_updated_at: datetime | None
-    project_assigned_at: datetime
-    project_user_role: str
+    project_assigned_at: datetime | None
+    project_user_role: str | None
 
 class UpdateProject(SQLModel):
     project_name: str | None = None
