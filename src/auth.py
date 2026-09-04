@@ -76,7 +76,7 @@ CurrentUser = Annotated[Users, Depends(get_current_user)]
 
 SearchedUser = Annotated[Users, Depends(get_user)]
 
-def get_project(session: SessionDep, project_name: str): # error
+def get_project(session: SessionDep, project_name: str):
     project = session.exec(select(Projects).where(Projects.project_name == project_name)).first()
     if project is None:
         raise HTTPException(
@@ -105,16 +105,29 @@ def get_project_for_update(session: SessionDep, project_name: str):
 
 CurrentProjectForUpdate = Annotated[Projects, Depends(get_project_for_update)]
 
-def get_all_projects(session: SessionDep):
-    projects = session.exec(select(Projects)).all() # all() returns a list
-    if len(projects) == 0:
+def get_all_projects(session: SessionDep, current_user: CurrentUser):
+    projects_id = session.exec(
+        select(
+            ProjectsAssignments.project_id
+        ).where(
+            ProjectsAssignments.user_id == current_user.user_id
+        )
+    ).all() # return a list of project_id
+    
+    if len(projects_id) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="You don't have any projects"
         )
+        
+    projects = []
+    for id in projects_id:
+        project = session.exec(select(Projects).where(Projects.project_id == id)).first()
+        projects.append(project)
+        
     return projects
 
-AllProjects = Annotated[Projects, Depends(get_all_projects)] # error
+AllProjects = Annotated[list[Projects], Depends(get_all_projects)]
 
 def get_task(session: SessionDep, task_name: str):
     task = session.exec(select(Tasks).where(Tasks.task_name == task_name)).first()
@@ -132,7 +145,17 @@ def get_role(session: SessionDep, user_id: int, project_id: int):
         select(
             ProjectsAssignments.role
         ).where(
-            ProjectsAssignments.user_id == user_id and ProjectsAssignments.project_id == project_id
+            ProjectsAssignments.user_id == user_id, ProjectsAssignments.project_id == project_id
         )
     ).first()
     return role
+
+def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
+    assigned_time = session.exec(
+        select(
+            ProjectsAssignments.project_assigned_at
+        ).where(
+            ProjectsAssignments.user_id == user_id, ProjectsAssignments.project_id == project_id
+        )
+    ).first()
+    return assigned_time
