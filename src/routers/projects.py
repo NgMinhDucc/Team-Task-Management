@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, status
 
-from auth import CurrentUser, CurrentProject, CurrentProjectForUpdate, AllProjects, get_role
+import auth
 from database import SessionDep
 from models import Projects, CreateProject, UpdateProject, ProjectPublic, ProjectsAssignments
 
 router = APIRouter(prefix="/projects")
 
 @router.post("/create-projects", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
-async def create_project(session: SessionDep, current_user: CurrentUser, create_project: CreateProject):
-    project_data = create_project.model_dump()
+async def create_project(session: SessionDep, current_user: auth.CurrentUser, create_project: CreateProject):
+    project_data = create_project.model_dump() # note: convert a model into a python dict
     new_project = Projects(**project_data)
     
     session.add(new_project)
@@ -29,16 +29,22 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
     session.add(project_owned_by)
     session.commit() # note: permanent data
     
-    session.refresh(new_project)
-    session.refresh(project_owned_by)
+    session.refresh(new_project) # saved to Projects
+    session.refresh(project_owned_by) # saved to ProjectsAssignments
     
-    return new_project
+    new_project_public_data = auth.get_project(session, new_project.project_name).model_dump()
+    new_project_public = ProjectPublic(
+        **new_project_public_data,
+        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, new_project.project_id),
+        project_user_role=auth.get_role(session, current_user.user_id, new_project.project_id)
+    )
+    return new_project_public
 
 @router.patch("/update-projects/{project_name}", response_model=ProjectPublic)
 async def update_projects(
     session: SessionDep,
-    current_user: CurrentUser,
-    current_project_for_update: CurrentProjectForUpdate,
+    current_user: auth.CurrentUser,
+    current_project_for_update: auth.CurrentProjectForUpdate,
     update_project: UpdateProject
 ):
     if current_user.user_id is None or current_project_for_update.project_id is None:
@@ -47,7 +53,7 @@ async def update_projects(
             detail="User ID or Project ID is missing"
         )
         
-    role = get_role(session, current_user.user_id, current_project_for_update.project_id)
+    role = auth.get_role(session, current_user.user_id, current_project_for_update.project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,25 +67,62 @@ async def update_projects(
     session.commit()
     session.refresh(current_project_for_update)
     
-    return current_project_for_update
+    updated_project_data = current_project_for_update.model_dump()
+    updated_project_public = ProjectPublic(
+        **updated_project_data,
+        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, current_project_for_update.project_id),
+        project_user_role=auth.get_role(session, current_user.user_id, current_project_for_update.project_id)
+    )
+    
+    return updated_project_public
 
-@router.get("/my-projects/{project_name}", response_model=ProjectPublic) # error: lack data
-async def get_project(current_user: CurrentUser, current_project: CurrentProject):
-    return current_project
-
-@router.get("/my-projects", response_model=ProjectPublic) # error: ValueError caused by response_model and AllProjects
-async def get_projects(current_user: CurrentUser, all_projects: AllProjects):
-    return all_projects
-
-@router.delete("/delete-projects/{project_name}")
-async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
+@router.get("/my-projects/{project_name}", response_model=ProjectPublic)
+async def get_project(session: SessionDep, current_user: auth.CurrentUser, current_project: auth.CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User ID or Project ID is missing"
         )
         
-    role = get_role(session, current_user.user_id, current_project.project_id)
+    project_data = current_project.model_dump()
+    project_public = ProjectPublic(
+        **project_data,
+        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, current_project.project_id),
+        project_user_role=auth.get_role(session, current_user.user_id, current_project.project_id)
+    )
+    
+    return project_public
+
+# improve: add pagination to avoid bottleneck (offset + limit)
+@router.get("/my-projects", response_model=list[ProjectPublic])
+async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_projects: auth.AllProjects):
+    all_projects_public = []
+    for project in all_projects:
+        if current_user.user_id is None or project.project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID or Project ID is missing"
+            )
+            
+        project_data = project.model_dump()
+        project_public = ProjectPublic(
+            **project_data,
+            project_assigned_at=auth.get_assigned_time(session, current_user.user_id, project.project_id),
+            project_user_role=auth.get_role(session, current_user.user_id, project.project_id)
+        )
+        all_projects_public.append(project_public)
+        
+    return all_projects_public
+
+@router.delete("/delete-projects/{project_name}")
+async def delete_project(session: SessionDep, current_user: auth.CurrentUser, current_project: auth.CurrentProject):
+    if current_user.user_id is None or current_project.project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID or Project ID is missing"
+        )
+        
+    role = auth.get_role(session, current_user.user_id, current_project.project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
