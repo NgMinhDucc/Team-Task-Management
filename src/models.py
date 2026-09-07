@@ -106,6 +106,7 @@ class Projects(ProjectBase, table=True):
 class CreateProject(ProjectBase):
     pass
 
+# improve: need to show the owner's name
 class ProjectPublic(SQLModel):
     project_name: str
     project_description: str | None
@@ -152,6 +153,10 @@ class ProjectsAssignments(SQLModel, table=True):
     )
     role: str # owner, admin, member
 
+class ProjectPaginationInfo(SQLModel):
+    data: list[Projects]
+    next_cursor: int | None
+    
 class TaskBase(SQLModel):
     task_name: str = Field()
     task_description: str | None = None
