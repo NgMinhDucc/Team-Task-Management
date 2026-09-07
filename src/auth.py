@@ -1,10 +1,10 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from typing import Annotated
 from pwdlib import PasswordHash
 import jwt
 from jwt.exceptions import InvalidTokenError
-from sqlmodel import select
+from sqlmodel import select, col
 from datetime import datetime, timedelta, timezone 
 
 from database import SessionDep
@@ -77,7 +77,10 @@ CurrentUser = Annotated[Users, Depends(get_current_user)]
 SearchedUser = Annotated[Users, Depends(get_user)]
 
 def get_project(session: SessionDep, project_name: str):
-    project = session.exec(select(Projects).where(Projects.project_name == project_name)).first()
+    project = session.exec(
+        select(Projects)
+        .where(Projects.project_name == project_name)
+    ).first()
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -90,11 +93,9 @@ CurrentProject = Annotated[Projects, Depends(get_project)]
 # note: use pessimistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
 def get_project_for_update(session: SessionDep, project_name: str):
     project = session.exec(
-        select(
-            Projects
-        ).where(
-            Projects.project_name == project_name
-        ).with_for_update()
+        select(Projects)
+        .where(Projects.project_name == project_name)
+        .with_for_update()
     ).first()
     if project is None:
         raise HTTPException(
@@ -105,26 +106,30 @@ def get_project_for_update(session: SessionDep, project_name: str):
 
 CurrentProjectForUpdate = Annotated[Projects, Depends(get_project_for_update)]
 
-def get_all_projects(session: SessionDep, current_user: CurrentUser):
-    projects_id = session.exec(
-        select(
-            ProjectsAssignments.project_id
-        ).where(
-            ProjectsAssignments.user_id == current_user.user_id
-        )
-    ).all() # return a list of project_id
+def get_all_projects(
+    session: SessionDep,
+    current_user: CurrentUser,
+    cursor: int | None = Query(None),
+    limit: int = Query(3, ge=1, le=10)
+): # note: pagination with cursor and limit
+    query = select(
+        Projects
+    ).join(
+        ProjectsAssignments
+    ).where(
+        ProjectsAssignments.user_id == current_user.user_id
+    ).order_by(
+        col(ProjectsAssignments.project_id)
+    ).limit(
+        limit
+    )
     
-    if len(projects_id) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="You don't have any projects"
-        )
-        
-    projects = []
-    for id in projects_id:
-        project = session.exec(select(Projects).where(Projects.project_id == id)).first()
-        projects.append(project)
-        
+    if cursor:
+        query = query.where(col(ProjectsAssignments.project_id) > cursor)
+        projects = session.exec(query).all()
+    else:
+        projects = session.exec(query).all()
+    
     return projects
 
 AllProjects = Annotated[list[Projects], Depends(get_all_projects)]
@@ -142,20 +147,20 @@ CurrentTask = Annotated[Tasks, Depends(get_task)]
 
 def get_role(session: SessionDep, user_id: int, project_id: int):
     role = session.exec(
-        select(
-            ProjectsAssignments.role
-        ).where(
-            ProjectsAssignments.user_id == user_id, ProjectsAssignments.project_id == project_id
+        select(ProjectsAssignments.role)
+        .where(
+            ProjectsAssignments.user_id == user_id,
+            ProjectsAssignments.project_id == project_id
         )
     ).first()
     return role
 
 def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
     assigned_time = session.exec(
-        select(
-            ProjectsAssignments.project_assigned_at
-        ).where(
-            ProjectsAssignments.user_id == user_id, ProjectsAssignments.project_id == project_id
+        select(ProjectsAssignments.project_assigned_at)
+        .where(
+            ProjectsAssignments.user_id == user_id,
+            ProjectsAssignments.project_id == project_id
         )
     ).first()
     return assigned_time
