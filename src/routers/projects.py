@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 
 import auth
 from database import SessionDep
-from models import Projects, CreateProject, UpdateProject, ProjectPublic, ProjectsAssignments
+from models import Projects, CreateProject, UpdateProject, ProjectPublic, ProjectsAssignments, ProjectPaginationInfo
 
 router = APIRouter(prefix="/projects")
 
@@ -93,26 +93,21 @@ async def get_project(session: SessionDep, current_user: auth.CurrentUser, curre
     
     return project_public
 
-# improve: add pagination to avoid bottleneck (offset + limit)
-@router.get("/my-projects", response_model=list[ProjectPublic])
-async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_projects: auth.AllProjects):
-    all_projects_public = []
-    for project in all_projects:
-        if current_user.user_id is None or project.project_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID or Project ID is missing"
-            )
-            
-        project_data = project.model_dump()
-        project_public = ProjectPublic(
-            **project_data,
-            project_assigned_at=auth.get_assigned_time(session, current_user.user_id, project.project_id),
-            project_user_role=auth.get_role(session, current_user.user_id, project.project_id)
-        )
-        all_projects_public.append(project_public)
-        
-    return all_projects_public
+# note: add pagination to avoid bottleneck (cursor + limit)
+# todo: map data to ProjectPublic
+@router.get("/my-projects", response_model=ProjectPaginationInfo)
+async def get_projects(current_user: auth.CurrentUser, all_projects: auth.AllProjects):
+    if all_projects:
+        cursor = all_projects[-1].project_id
+    else:
+        cursor = None
+    
+    result = ProjectPaginationInfo(
+        data=all_projects,
+        next_cursor=cursor
+    )
+    print(current_user.user_id, current_user.user_name)
+    return result
 
 @router.delete("/delete-projects/{project_name}")
 async def delete_project(session: SessionDep, current_user: auth.CurrentUser, current_project: auth.CurrentProject):
