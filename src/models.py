@@ -106,7 +106,6 @@ class Projects(ProjectBase, table=True):
 class CreateProject(ProjectBase):
     pass
 
-# improve: need to show the owner's name
 class ProjectPublic(SQLModel):
     project_name: str
     project_description: str | None
@@ -114,7 +113,7 @@ class ProjectPublic(SQLModel):
     project_created_at: datetime
     project_last_updated_at: datetime | None
     project_assigned_at: datetime | None
-    project_user_role: str | None
+    project_owner_name: str | None
 
 class UpdateProject(SQLModel):
     project_name: str | None = None
@@ -154,7 +153,7 @@ class ProjectsAssignments(SQLModel, table=True):
     role: str # owner, admin, member
 
 class ProjectPaginationInfo(SQLModel):
-    data: list[Projects]
+    data: list[ProjectPublic]
     next_cursor: int | None
     
 class TaskBase(SQLModel):
