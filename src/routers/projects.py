@@ -36,7 +36,7 @@ async def create_project(session: SessionDep, current_user: auth.CurrentUser, cr
     new_project_public = ProjectPublic(
         **new_project_public_data,
         project_assigned_at=auth.get_assigned_time(session, current_user.user_id, new_project.project_id),
-        project_user_role=auth.get_role(session, current_user.user_id, new_project.project_id)
+        project_owner_name=current_user.user_name
     )
     return new_project_public
 
@@ -71,42 +71,57 @@ async def update_projects(
     updated_project_public = ProjectPublic(
         **updated_project_data,
         project_assigned_at=auth.get_assigned_time(session, current_user.user_id, current_project_for_update.project_id),
-        project_user_role=auth.get_role(session, current_user.user_id, current_project_for_update.project_id)
+        project_owner_name=current_user.user_name
     )
     
     return updated_project_public
 
 @router.get("/my-projects/{project_name}", response_model=ProjectPublic)
-async def get_project(session: SessionDep, current_user: auth.CurrentUser, current_project: auth.CurrentProject):
-    if current_user.user_id is None or current_project.project_id is None:
+async def search_my_project(session: SessionDep, current_user: auth.CurrentUser, my_project: auth.CurrentProject):
+    if current_user.user_id is None or my_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User ID or Project ID is missing"
         )
         
-    project_data = current_project.model_dump()
-    project_public = ProjectPublic(
+    project_data = my_project.model_dump()
+    my_project_public = ProjectPublic(
         **project_data,
-        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, current_project.project_id),
-        project_user_role=auth.get_role(session, current_user.user_id, current_project.project_id)
+        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, my_project.project_id),
+        project_owner_name=current_user.user_name
     )
     
-    return project_public
+    return my_project_public
 
 # note: add pagination to avoid bottleneck (cursor + limit)
-# todo: map data to ProjectPublic
 @router.get("/my-projects", response_model=ProjectPaginationInfo)
-async def get_projects(current_user: auth.CurrentUser, all_projects: auth.AllProjects):
+async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_projects: auth.AllProjects):
     if all_projects:
         cursor = all_projects[-1].project_id
     else:
         cursor = None
+        
+    all_projects_public = []
+    for project in all_projects:
+        if current_user.user_id is None or project.project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID or Project ID is missing"
+            )
+        
+        project_data = project.model_dump()
+        project_public = ProjectPublic(
+            **project_data,
+            project_assigned_at=auth.get_assigned_time(session, current_user.user_id, project.project_id),
+            project_owner_name=current_user.user_name
+        )
+        all_projects_public.append(project_public)
     
     result = ProjectPaginationInfo(
-        data=all_projects,
+        data=all_projects_public,
         next_cursor=cursor
     )
-    print(current_user.user_id, current_user.user_name)
+    
     return result
 
 @router.delete("/delete-projects/{project_name}")
@@ -128,3 +143,16 @@ async def delete_project(session: SessionDep, current_user: auth.CurrentUser, cu
     session.commit()
     
     return "project deleted successfully"
+
+# todo: add a search project, add/delete members, assign roles, get member list endpoint, 
+@router.get("/search-project/{project_name}", response_model=ProjectPublic)
+async def search_project (session: SessionDep, current_user: auth.CurrentUser, searched_project: auth.CurrentProject):
+    if searched_project.project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project ID is missing"
+        )
+    searched_project_data = searched_project.model_dump()
+    searched_project_public = ProjectPublic(
+        **searched_project_data
+    )
