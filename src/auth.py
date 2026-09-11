@@ -6,6 +6,8 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from sqlmodel import select, col
 from datetime import datetime, timedelta, timezone 
+import os
+from dotenv import load_dotenv
 
 from database import SessionDep
 from models import Users, Projects, ProjectsAssignments, Tasks, TokenData
@@ -15,7 +17,7 @@ Tokenn = Annotated[str, Depends(oauth2_scheme)]
 
 password_hash = PasswordHash.recommended()
 
-SECRET_KEY = "254a63eb246df55d827b4b648c32da90d2d165c769818f9d9f73fb48454b85a3"
+SECRET_KEY = os.getenv("SECRET_KEY")
 DUMMY_HASH = password_hash.hash("dummyhash")
 
 def verify_password(plain_password, hashed_password):
@@ -75,92 +77,3 @@ FormData = Annotated[OAuth2PasswordRequestForm, Depends()]
 CurrentUser = Annotated[Users, Depends(get_current_user)]
 
 SearchedUser = Annotated[Users, Depends(get_user)]
-
-def get_project(session: SessionDep, project_name: str):
-    project = session.exec(
-        select(Projects)
-        .where(Projects.project_name == project_name)
-    ).first()
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="project not found"
-        )
-    return project
-
-CurrentProject = Annotated[Projects, Depends(get_project)]
-
-# note: use pessimistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
-def get_project_for_update(session: SessionDep, project_name: str):
-    project = session.exec(
-        select(Projects)
-        .where(Projects.project_name == project_name)
-        .with_for_update()
-    ).first()
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="project not found"
-        )
-    return project
-
-CurrentProjectForUpdate = Annotated[Projects, Depends(get_project_for_update)]
-
-def get_all_projects(
-    session: SessionDep,
-    current_user: CurrentUser,
-    cursor: int | None = Query(None),
-    limit: int = Query(3, ge=1, le=10)
-): # note: pagination with cursor and limit
-    query = select(
-        Projects
-    ).join(
-        ProjectsAssignments
-    ).where(
-        ProjectsAssignments.user_id == current_user.user_id
-    ).order_by(
-        col(ProjectsAssignments.project_id)
-    ).limit(
-        limit
-    )
-    
-    if cursor:
-        query = query.where(col(ProjectsAssignments.project_id) > cursor)
-        projects = session.exec(query).all()
-    else:
-        projects = session.exec(query).all()
-    
-    return projects
-
-AllProjects = Annotated[list[Projects], Depends(get_all_projects)]
-
-def get_task(session: SessionDep, task_name: str):
-    task = session.exec(select(Tasks).where(Tasks.task_name == task_name)).first()
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="task not found"
-        )
-    return task
-
-CurrentTask = Annotated[Tasks, Depends(get_task)]
-
-def get_role(session: SessionDep, user_id: int, project_id: int):
-    role = session.exec(
-        select(ProjectsAssignments.role)
-        .where(
-            ProjectsAssignments.user_id == user_id,
-            ProjectsAssignments.project_id == project_id
-        )
-    ).first()
-    return role
-
-def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
-    assigned_time = session.exec(
-        select(ProjectsAssignments.project_assigned_at)
-        .where(
-            ProjectsAssignments.user_id == user_id,
-            ProjectsAssignments.project_id == project_id
-        )
-    ).first()
-    return assigned_time
