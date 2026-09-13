@@ -2,8 +2,6 @@ from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, Uni
 from datetime import datetime
 from pydantic import EmailStr, field_validator
 
-# optional: consider using link_model() to get users', projects', or tasks' data less manually
-
 class UserBase(SQLModel):
     user_name: str = Field(unique=True)
     email: EmailStr = Field(unique=True)

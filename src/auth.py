@@ -1,21 +1,23 @@
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from typing import Annotated
 from pwdlib import PasswordHash
 import jwt
 from jwt.exceptions import InvalidTokenError
-from sqlmodel import select, col
+from sqlmodel import select
 from datetime import datetime, timedelta, timezone 
 import os
 from dotenv import load_dotenv
 
 from database import SessionDep
-from models import Users, Projects, ProjectsAssignments, Tasks, TokenData
+from models import Users, TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # note: the parameter is only useful in swagger ui
 Tokenn = Annotated[str, Depends(oauth2_scheme)]
 
 password_hash = PasswordHash.recommended()
+
+load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 DUMMY_HASH = password_hash.hash("dummyhash")
@@ -71,7 +73,6 @@ def get_current_user(session: SessionDep, token: Tokenn):
         raise credentials_exception
     return user
         
-
 FormData = Annotated[OAuth2PasswordRequestForm, Depends()]
 
 CurrentUser = Annotated[Users, Depends(get_current_user)]
