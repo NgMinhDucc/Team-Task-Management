@@ -1,51 +1,58 @@
 from fastapi import APIRouter, HTTPException, status
 
 import auth
+import services.projects as sp
 from database import SessionDep
-from models import Projects, CreateProject, UpdateProject, ProjectPublic, ProjectsAssignments, ProjectPaginationInfo
+import models.projects as mp
 
 router = APIRouter(prefix="/projects")
 
-@router.post("/create-projects", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
-async def create_project(session: SessionDep, current_user: auth.CurrentUser, create_project: CreateProject):
+@router.post("/create-projects", status_code=status.HTTP_201_CREATED, response_model=mp.ProjectPublic)
+async def create_project(session: SessionDep, current_user: auth.CurrentUser, create_project: mp.CreateProject):
     project_data = create_project.model_dump() # note: convert a model into a python dict
-    new_project = Projects(**project_data)
+    new_project = mp.Projects(**project_data)
     
-    session.add(new_project)
-    session.flush() # note: temporary data
-    
-    if current_user.user_id is None or new_project.project_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User ID or Project ID is missing"
+    if sp.check_project_existence(session, new_project.project_name):
+        session.add(new_project)
+        session.flush() # note: temporary data
+        
+        if current_user.user_id is None or new_project.project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID or Project ID is missing"
+            )
+            
+        project_owned_by = mp.ProjectsAssignments(
+            user_id=current_user.user_id,
+            project_id=new_project.project_id,
+            role="OWNER"
         )
         
-    project_owned_by = ProjectsAssignments(
-        user_id=current_user.user_id,
-        project_id=new_project.project_id,
-        role="OWNER"
-    )
-    
-    session.add(project_owned_by)
-    session.commit() # note: permanent data
-    
-    session.refresh(new_project) # saved to Projects
-    session.refresh(project_owned_by) # saved to ProjectsAssignments
-    
-    new_project_public_data = auth.get_project(session, new_project.project_name).model_dump()
-    new_project_public = ProjectPublic(
-        **new_project_public_data,
-        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, new_project.project_id),
-        project_owner_name=current_user.user_name
-    )
-    return new_project_public
+        session.add(project_owned_by)
+        session.commit() # note: permanent data
+        
+        session.refresh(new_project) # saved to Projects
+        session.refresh(project_owned_by) # saved to ProjectsAssignments
+        
+        new_project_public_data = sp.get_project(session, new_project.project_name).model_dump()
+        new_project_public = mp.ProjectPublic(
+            **new_project_public_data,
+            project_assigned_at=sp.get_assigned_time(session, current_user.user_id, new_project.project_id),
+            project_owner_name=current_user.user_name
+        )
+        return new_project_public
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Project already exists"
+        )
 
-@router.patch("/update-projects/{project_name}", response_model=ProjectPublic)
+@router.patch("/update-projects/{project_name}", response_model=mp.ProjectPublic)
 async def update_projects(
     session: SessionDep,
     current_user: auth.CurrentUser,
-    current_project_for_update: auth.CurrentProjectForUpdate,
-    update_project: UpdateProject
+    current_project_for_update: sp.CurrentProjectForUpdate,
+    update_project: mp.UpdateProject
 ):
     if current_user.user_id is None or current_project_for_update.project_id is None:
         raise HTTPException(
@@ -53,7 +60,7 @@ async def update_projects(
             detail="User ID or Project ID is missing"
         )
         
-    role = auth.get_role(session, current_user.user_id, current_project_for_update.project_id)
+    role = sp.get_role(session, current_user.user_id, current_project_for_update.project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -68,16 +75,16 @@ async def update_projects(
     session.refresh(current_project_for_update)
     
     updated_project_data = current_project_for_update.model_dump()
-    updated_project_public = ProjectPublic(
+    updated_project_public = mp.ProjectPublic(
         **updated_project_data,
-        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, current_project_for_update.project_id),
+        project_assigned_at=sp.get_assigned_time(session, current_user.user_id, current_project_for_update.project_id),
         project_owner_name=current_user.user_name
     )
     
     return updated_project_public
 
-@router.get("/my-projects/{project_name}", response_model=ProjectPublic)
-async def search_my_project(session: SessionDep, current_user: auth.CurrentUser, my_project: auth.CurrentProject):
+@router.get("/my-projects/{project_name}", response_model=mp.ProjectPublic)
+async def search_my_project(session: SessionDep, current_user: auth.CurrentUser, my_project: sp.CurrentProject):
     if current_user.user_id is None or my_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -85,17 +92,17 @@ async def search_my_project(session: SessionDep, current_user: auth.CurrentUser,
         )
         
     project_data = my_project.model_dump()
-    my_project_public = ProjectPublic(
+    my_project_public = mp.ProjectPublic(
         **project_data,
-        project_assigned_at=auth.get_assigned_time(session, current_user.user_id, my_project.project_id),
+        project_assigned_at=sp.get_assigned_time(session, current_user.user_id, my_project.project_id),
         project_owner_name=current_user.user_name
     )
     
     return my_project_public
 
 # note: add pagination to avoid bottleneck (cursor + limit)
-@router.get("/my-projects", response_model=ProjectPaginationInfo)
-async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_projects: auth.AllProjects):
+@router.get("/my-projects", response_model=mp.ProjectPaginationInfo)
+async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_projects: sp.AllProjects):
     if all_projects:
         cursor = all_projects[-1].project_id
     else:
@@ -110,14 +117,14 @@ async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_
             )
         
         project_data = project.model_dump()
-        project_public = ProjectPublic(
+        project_public = mp.ProjectPublic(
             **project_data,
-            project_assigned_at=auth.get_assigned_time(session, current_user.user_id, project.project_id),
+            project_assigned_at=sp.get_assigned_time(session, current_user.user_id, project.project_id),
             project_owner_name=current_user.user_name
         )
         all_projects_public.append(project_public)
     
-    result = ProjectPaginationInfo(
+    result = mp.ProjectPaginationInfo(
         data=all_projects_public,
         next_cursor=cursor
     )
@@ -125,14 +132,14 @@ async def get_projects(session: SessionDep, current_user: auth.CurrentUser, all_
     return result
 
 @router.delete("/delete-projects/{project_name}")
-async def delete_project(session: SessionDep, current_user: auth.CurrentUser, current_project: auth.CurrentProject):
+async def delete_project(session: SessionDep, current_user: auth.CurrentUser, current_project: sp.CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User ID or Project ID is missing"
         )
         
-    role = auth.get_role(session, current_user.user_id, current_project.project_id)
+    role = sp.get_role(session, current_user.user_id, current_project.project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -144,15 +151,27 @@ async def delete_project(session: SessionDep, current_user: auth.CurrentUser, cu
     
     return "project deleted successfully"
 
-# todo: add a search project, add/delete members, assign roles, get member list endpoint, 
-@router.get("/search-project/{project_name}", response_model=ProjectPublic)
-async def search_project (session: SessionDep, current_user: auth.CurrentUser, searched_project: auth.CurrentProject):
-    if searched_project.project_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Project ID is missing"
-        )
-    searched_project_data = searched_project.model_dump()
-    searched_project_public = ProjectPublic(
-        **searched_project_data
-    )
+# todo: add a search project, add/delete members, assign roles, get member list endpoint
+@router.get("/search-projects")
+# searched_projects must be a list of Projects
+async def search_project(session: SessionDep, current_user: auth.CurrentUser):
+    # if searched_projects:
+    #     cursor = searched_projects[-1].project_id
+    # else:
+    #     cursor = None
+        
+    # all_searched_projects = []
+    # for project in all_searched_projects:
+    #     if project.project_id is None:
+    #         raise HTTPException(
+    #             status_code=status.HTTP_400_BAD_REQUEST,
+    #             detail="Project ID is missing"
+    #         )
+        
+    #     project_data = project.model_dump()
+    #     searched_project_public = ProjectPublic(
+    #         **project_data,
+    #         project_assigned_at=sp.get_assigned_time(session, )
+    #     )
+    
+    print(sp.search_projects(session, "coding", 1, 10))

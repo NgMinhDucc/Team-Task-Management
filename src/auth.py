@@ -10,7 +10,8 @@ import os
 from dotenv import load_dotenv
 
 from database import SessionDep
-from models import Users, TokenData
+import models.users as mu
+import models.token as mtok
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # note: the parameter is only useful in swagger ui
 Tokenn = Annotated[str, Depends(oauth2_scheme)]
@@ -27,7 +28,7 @@ def verify_password(plain_password, hashed_password):
 
 def get_user(session: SessionDep, user_name: str):
     # find the first account whose username matches with the input
-    user = session.exec(select(Users).where(Users.user_name == user_name)).first()
+    user = session.exec(select(mu.Users).where(mu.Users.user_name == user_name)).first()
     return user
 
 def authenticate_user(session: SessionDep, user_name: str, password: str):
@@ -64,7 +65,7 @@ def get_current_user(session: SessionDep, token: Tokenn):
         user_name = payload.get("sub")
         if not user_name:
             raise credentials_exception
-        token_data = TokenData(user_name=user_name)
+        token_data = mtok.TokenData(user_name=user_name)
     except InvalidTokenError:
         raise credentials_exception
     
@@ -75,6 +76,6 @@ def get_current_user(session: SessionDep, token: Tokenn):
         
 FormData = Annotated[OAuth2PasswordRequestForm, Depends()]
 
-CurrentUser = Annotated[Users, Depends(get_current_user)]
+CurrentUser = Annotated[mu.Users, Depends(get_current_user)]
 
-SearchedUser = Annotated[Users, Depends(get_user)]
+SearchedUser = Annotated[mu.Users, Depends(get_user)]

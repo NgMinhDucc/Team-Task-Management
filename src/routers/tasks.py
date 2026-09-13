@@ -3,14 +3,14 @@ from fastapi import APIRouter
 import auth
 import services.tasks as st
 from database import SessionDep
-from models import Tasks, CreateTask, UpdateTask, TaskPublic
+import models.tasks as mt
 
 router = APIRouter(prefix="/tasks")
 
 @router.post("/create-tasks")
-async def create_tasks(session: SessionDep, current_user: auth.CurrentUser, create_task: CreateTask):
+async def create_tasks(session: SessionDep, current_user: auth.CurrentUser, create_task: mt.CreateTask):
     task_data = create_task.model_dump()
-    new_task = Tasks(**task_data)
+    new_task = mt.Tasks(**task_data)
     
     session.add(new_task)
     session.commit()
@@ -19,7 +19,7 @@ async def create_tasks(session: SessionDep, current_user: auth.CurrentUser, crea
     return "task created successfully"
 
 @router.patch("/update-tasks/{task_name}")
-async def update_task(session: SessionDep, current_user: auth.CurrentUser, current_task: st.CurrentTask, update_task: UpdateTask):
+async def update_task(session: SessionDep, current_user: auth.CurrentUser, current_task: st.CurrentTask, update_task: mt.UpdateTask):
     updated_data = update_task.model_dump(exclude_unset=True)
     current_task.sqlmodel_update(updated_data)
     
@@ -29,6 +29,6 @@ async def update_task(session: SessionDep, current_user: auth.CurrentUser, curre
     
     return "task updated successfully"
 
-@router.get("/my-tasks/{task_name}", response_model=TaskPublic)
+@router.get("/my-tasks/{task_name}", response_model=mt.TaskPublic)
 async def get_task(current_user: auth.CurrentUser, current_task: st.CurrentTask):
     return current_task
