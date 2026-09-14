@@ -1,10 +1,12 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship
 from datetime import datetime
 from pydantic import EmailStr
+from typing import TYPE_CHECKING
 
-from .tasks import TasksAssignments
-from .comments import Comments
-from .projects import ProjectsAssignments
+if TYPE_CHECKING:
+    from .tasks import TasksAssignments
+    from .comments import Comments
+    from .projects import ProjectsAssignments
 
 class UserBase(SQLModel):
     user_name: str = Field(unique=True)

@@ -1,8 +1,10 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from .users import Users
-from .tasks import Tasks
+if TYPE_CHECKING:
+    from .users import Users
+    from .tasks import Tasks
 
 class CommentBase(SQLModel):
     comment_content: str

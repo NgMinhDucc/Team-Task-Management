@@ -1,9 +1,11 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
 from datetime import datetime
 from pydantic import EmailStr, field_validator
+from typing import TYPE_CHECKING
 
-from .tasks import Tasks
-from .users import Users
+if TYPE_CHECKING:
+    from .tasks import Tasks
+    from .users import Users
 
 class ProjectBase(SQLModel):
     project_name: str = Field(unique=True)
@@ -74,6 +76,7 @@ class UpdateProject(SQLModel):
             raise ValueError("doesn't have timezone information")
         return tz
 
+# todo: fix the relationship setup
 class ProjectsAssignments(SQLModel, table=True):
     # composite primary key (user_id, project_id)
     user_id: int = Field(

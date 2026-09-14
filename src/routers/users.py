@@ -2,19 +2,19 @@ from fastapi import APIRouter, HTTPException, status
 from datetime import timedelta
 
 from database import SessionDep
-import models.users as mu
-import models.token as mtok
+from models import Users, CreateUser, UserPublic, UpdateUser, ChangePassword
+from models import Token
 from utils import hashing
 from auth import FormData, authenticate_user, create_access_token, verify_password, CurrentUser, SearchedUser
 
 router = APIRouter(prefix="/users")
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def create_user(create_user: mu.CreateUser, session: SessionDep):
+async def create_user(create_user: CreateUser, session: SessionDep):
     user_data = create_user.model_dump() # turn model into a dict 
     hashed_password = hashing(user_data.pop("hashed_password"))
     
-    new_user = mu.Users(**user_data, hashed_password=hashed_password)
+    new_user = Users(**user_data, hashed_password=hashed_password)
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
@@ -22,7 +22,7 @@ async def create_user(create_user: mu.CreateUser, session: SessionDep):
     return "account created successfully"
 
 @router.post("/login")
-async def login_for_access_token(session: SessionDep, form_data: FormData) -> mtok.Token:
+async def login_for_access_token(session: SessionDep, form_data: FormData) -> Token:
     user = authenticate_user(session, form_data.username, form_data.password)
     
     if not user:
@@ -35,17 +35,17 @@ async def login_for_access_token(session: SessionDep, form_data: FormData) -> mt
     access_token_expires = timedelta(minutes=30)
     access_token = create_access_token({"sub": user.user_name}, access_token_expires)
     
-    return mtok.Token(
+    return Token(
         access_token=access_token,
         token_type="Bearer"
     )
     
-@router.get("/me", response_model=mu.UserPublic)
+@router.get("/me", response_model=UserPublic)
 async def get_me(current_user: CurrentUser):
     return current_user
 
 @router.patch("/me/update-me")
-async def update_me(session: SessionDep, current_user: CurrentUser, update_user: mu.UpdateUser):
+async def update_me(session: SessionDep, current_user: CurrentUser, update_user: UpdateUser):
     updated_data = update_user.model_dump(exclude_unset=True)
     current_user.sqlmodel_update(updated_data)
     
@@ -56,7 +56,7 @@ async def update_me(session: SessionDep, current_user: CurrentUser, update_user:
     return "account updated successfully"
 
 @router.patch("/me/change-password")
-async def change_password(session: SessionDep, current_user: CurrentUser, change_password: mu.ChangePassword):
+async def change_password(session: SessionDep, current_user: CurrentUser, change_password: ChangePassword):
     if not verify_password(change_password.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -71,7 +71,7 @@ async def change_password(session: SessionDep, current_user: CurrentUser, change
     
     return "password changed successfully"
 
-@router.get("/search-user/{user_name}", response_model=mu.UserPublic)
+@router.get("/search-user/{user_name}", response_model=UserPublic)
 async def search(current_user: CurrentUser, searched_user: SearchedUser):
     return searched_user
 

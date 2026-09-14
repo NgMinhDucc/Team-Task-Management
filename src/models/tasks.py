@@ -1,10 +1,12 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
 from datetime import datetime
 from pydantic import field_validator
+from typing import TYPE_CHECKING
 
-from .projects import Projects
-from .comments import Comments
-from .users import Users
+if TYPE_CHECKING:
+    from .projects import Projects
+    from .comments import Comments
+    from .users import Users
 
 class TaskBase(SQLModel):
     task_name: str = Field()
