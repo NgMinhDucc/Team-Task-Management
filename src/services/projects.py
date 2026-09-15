@@ -15,7 +15,7 @@ def get_project(session: SessionDep, project_name: str):
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="project not found"
+            detail="Project not found"
         )
     return project
 
@@ -117,3 +117,5 @@ def search_projects(
     query = query.limit(limit)
     
     return session.exec(query).all()
+
+SearchedProjects = Annotated[list, Depends(search_projects)]
