@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
 from datetime import datetime
 from pydantic import EmailStr, field_validator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .tasks import Tasks
@@ -84,7 +84,8 @@ class ProjectsAssignments(SQLModel, table=True):
         foreign_key="users.user_id",
         ondelete="CASCADE"
     )
-    upa: Users | None = Relationship(back_populates="users_project_assignment")
+    # upa: Users | None = Relationship(back_populates="users_project_assignment")
+    upa: Optional[Users] = Relationship(back_populates="users_project_assignment")
     
     project_id: int = Field(
         primary_key=True,

@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .users import Users
@@ -31,13 +31,15 @@ class Comments(CommentBase, table=True):
         foreign_key="users.user_id",
         ondelete="CASCADE"
     )
-    uc: Users | None = Relationship(back_populates="users_comment")
+    # uc: Users | None = Relationship(back_populates="users_comment")
+    uc: Optional[Users] = Relationship(back_populates="users_comment")
     
     task_id: int = Field(
         foreign_key="tasks.task_id",
         ondelete="CASCADE"
     )
-    tc: Tasks | None = Relationship(back_populates="tasks_comment")
+    # tc: Tasks | None = Relationship(back_populates="tasks_comment")
+    tc: Optional[Tasks] = Relationship(back_populates="tasks_comment")
     
 class CreateComment(CommentBase):
     pass
