@@ -47,7 +47,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
             detail="Project already exists"
         )
 
-@router.patch("/update-projects/{project_name}", response_model=ProjectPublic)
+@router.patch("/update-projects", response_model=ProjectPublic)
 async def update_projects(
     session: SessionDep,
     current_user: CurrentUser,
@@ -83,7 +83,7 @@ async def update_projects(
     
     return updated_project_public
 
-@router.get("/my-projects/{project_name}", response_model=ProjectPublic)
+@router.get("/my-projects", response_model=ProjectPublic)
 async def search_my_project(session: SessionDep, current_user: CurrentUser, my_project: sp.CurrentProject):
     if current_user.user_id is None or my_project.project_id is None:
         raise HTTPException(
@@ -124,14 +124,12 @@ async def get_projects(session: SessionDep, current_user: CurrentUser, all_proje
         )
         all_projects_public.append(project_public)
     
-    result = ProjectPaginationInfo(
+    return ProjectPaginationInfo(
         data=all_projects_public,
         next_cursor=cursor
     )
-    
-    return result
 
-@router.delete("/delete-projects/{project_name}")
+@router.delete("/my-projects/delete-projects")
 async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: sp.CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
@@ -151,30 +149,37 @@ async def delete_project(session: SessionDep, current_user: CurrentUser, current
     
     return "project deleted successfully"
 
-# todo: add a search project, add/delete members, assign roles, get member list endpoint
-# inprogress: fix this endpoint
 @router.get("/search-projects")
-# searched_projects must be a list of Projects
-async def search_project(session: SessionDep, current_user: CurrentUser):
-    # if searched_projects:
-    #     cursor = searched_projects[-1].project_id
-    # else:
-    #     cursor = None
-        
-    # all_searched_projects = []
-    # for project in all_searched_projects:
-    #     if project.project_id is None:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_400_BAD_REQUEST,
-    #             detail="Project ID is missing"
-    #         )
-        
-    #     project_data = project.model_dump()
-    #     searched_project_public = ProjectPublic(
-    #         **project_data,
-    #         project_assigned_at=sp.get_assigned_time(session, )
-    #     )
+# searched_projects must be a list of Projects, with user_id and user_name
+async def search_project(session: SessionDep, current_user: CurrentUser, searched_projects: sp.SearchedProjects):
+    if searched_projects:
+        cursor = searched_projects[-1][0].project_id
+    else:
+        cursor = None
     
-    res = sp.search_projects(session, "coding", 1, 10)
-    for r in res:
-        print(r, "\n")
+    all_searched_projects = []
+    for project in searched_projects:
+        if project[0].project_id is None or project[1] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID or Project ID is missing"
+            )
+            
+        project_data = project[0].model_dump()
+        project_public = ProjectPublic(
+            **project_data,
+            project_assigned_at=sp.get_assigned_time(session, project[1], project[0].project_id),
+            project_owner_name=project[2]
+        )
+        all_searched_projects.append(project_public)
+        
+    return ProjectPaginationInfo(
+        data=all_searched_projects,
+        next_cursor=cursor
+    )
+
+# todo: add a add/delete members, assign roles, get member list endpoint
+# inprogress: designing the add_memeber endpoint
+@router.patch("/my-projects")
+async def add_members(session: SessionDep, current_user: CurrentUser):
+    pass
