@@ -19,14 +19,21 @@ def get_project(session: SessionDep, project_name: str):
         )
     return project
 
-def check_project_existence(session: SessionDep, project_name: str):
-    project = session.exec(
-        select(Projects.project_name)
-        .where(Projects.project_name == project_name)
+def check_project_existence(session: SessionDep, user_id: int, project_name: str):
+    already_exist = session.exec(
+        select(ProjectsAssignments)
+        .join(Projects)
+        .join(Users)
+        .where(
+            Projects.project_name == project_name,
+            Users.user_id == user_id,
+            ProjectsAssignments.role == "OWNER"
+        )
     ).first()
-    if project:
-        return False # already exists
-    return True
+
+    if already_exist:
+        return True
+    return False
 
 CurrentProject = Annotated[Projects, Depends(get_project)]
 
