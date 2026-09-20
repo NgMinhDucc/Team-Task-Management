@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
 from datetime import datetime
-from pydantic import EmailStr, field_validator
+from pydantic import field_validator
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
