@@ -174,8 +174,8 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
         project_data = project[0].model_dump()
         project_public = ProjectPublic(
             **project_data,
-            project_assigned_at=get_assigned_time(session, project[1], project[0].project_id),
-            project_owner_name=project[2]
+            project_assigned_at=get_assigned_time(session, project[1], project[0].project_id), # put user_id and project_id in this function
+            project_owner_name=project[2] # user_name
         )
         all_searched_projects.append(project_public)
         
