@@ -7,7 +7,7 @@ from services import get_project, check_project_existence, CurrentProject, Curre
 
 router = APIRouter(prefix="/projects")
 
-@router.post("/create-projects", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
 async def create_project(session: SessionDep, current_user: CurrentUser, create_project: CreateProject):
     project_data = create_project.model_dump() # note: convert a model into a python dict
     new_project = Projects(**project_data)
@@ -53,7 +53,36 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
             detail="Project already exists"
         )
 
-@router.patch("/update-projects", response_model=ProjectPublic)
+# note: add pagination to avoid bottleneck (cursor + limit)
+@router.get("/", response_model=ProjectPaginationInfo)
+async def get_projects(session: SessionDep, current_user: CurrentUser, all_projects: AllProjects):
+    if all_projects:
+        cursor = all_projects[-1].project_id
+    else:
+        cursor = None
+
+    all_projects_public = []
+    for project in all_projects:
+        if current_user.user_id is None or project.project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID or Project ID is missing"
+            )
+
+        project_data = project.model_dump()
+        project_public = ProjectPublic(
+            **project_data,
+            project_assigned_at=get_assigned_time(session, current_user.user_id, project.project_id),
+            project_owner_name=current_user.user_name
+        )
+        all_projects_public.append(project_public)
+
+    return ProjectPaginationInfo(
+        data=all_projects_public,
+        next_cursor=cursor
+    )
+
+@router.patch("/{project_id}", response_model=ProjectPublic)
 async def update_projects(
     session: SessionDep,
     current_user: CurrentUser,
@@ -89,53 +118,7 @@ async def update_projects(
     
     return updated_project_public
 
-@router.get("/my-projects/search", response_model=ProjectPublic)
-async def search_my_project(session: SessionDep, current_user: CurrentUser, my_project: CurrentProject):
-    if current_user.user_id is None or my_project.project_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User ID or Project ID is missing"
-        )
-        
-    project_data = my_project.model_dump()
-    my_project_public = ProjectPublic(
-        **project_data,
-        project_assigned_at=get_assigned_time(session, current_user.user_id, my_project.project_id),
-        project_owner_name=current_user.user_name
-    )
-    
-    return my_project_public
-
-# note: add pagination to avoid bottleneck (cursor + limit)
-@router.get("/my-projects", response_model=ProjectPaginationInfo)
-async def get_projects(session: SessionDep, current_user: CurrentUser, all_projects: AllProjects):
-    if all_projects:
-        cursor = all_projects[-1].project_id
-    else:
-        cursor = None
-        
-    all_projects_public = []
-    for project in all_projects:
-        if current_user.user_id is None or project.project_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID or Project ID is missing"
-            )
-        
-        project_data = project.model_dump()
-        project_public = ProjectPublic(
-            **project_data,
-            project_assigned_at=get_assigned_time(session, current_user.user_id, project.project_id),
-            project_owner_name=current_user.user_name
-        )
-        all_projects_public.append(project_public)
-    
-    return ProjectPaginationInfo(
-        data=all_projects_public,
-        next_cursor=cursor
-    )
-
-@router.delete("/my-projects/delete-projects")
+@router.delete("/{project_id}")
 async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
@@ -154,6 +137,24 @@ async def delete_project(session: SessionDep, current_user: CurrentUser, current
     session.commit()
     
     return "project deleted successfully"
+
+router.get("/my-projects/search", response_model=ProjectPublic)
+async def search_my_project(session: SessionDep, current_user: CurrentUser, my_project: CurrentProject):
+    if current_user.user_id is None or my_project.project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID or Project ID is missing"
+        )
+
+    project_data = my_project.model_dump()
+    my_project_public = ProjectPublic(
+        **project_data,
+        project_assigned_at=get_assigned_time(session, current_user.user_id, my_project.project_id),
+        project_owner_name=current_user.user_name
+    )
+
+    return my_project_public
+
 
 @router.get("/search-projects")
 # searched_projects must be a list of Projects, with user_id and user_name
