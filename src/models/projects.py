@@ -76,7 +76,6 @@ class UpdateProject(SQLModel):
             raise ValueError("doesn't have timezone information")
         return tz
 
-# todo: fix the relationship setup
 class ProjectsAssignments(SQLModel, table=True):
     # composite primary key (user_id, project_id)
     user_id: int = Field(
