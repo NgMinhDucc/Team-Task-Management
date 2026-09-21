@@ -31,17 +31,15 @@ def check_project_existence(session: SessionDep, user_id: int, project_name: str
         )
     ).first()
 
-    if already_exist:
-        return True
-    return False
+    return bool(already_exist)
 
 CurrentProject = Annotated[Projects, Depends(get_project)]
 
 # note: use pessimistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
-def get_project_for_update(session: SessionDep, project_name: str):
+def get_project_for_update(session: SessionDep, project_id: int):
     project = session.exec(
         select(Projects)
-        .where(Projects.project_name == project_name)
+        .where(Projects.project_id == project_id)
         .with_for_update()
     ).first()
     if project is None:
