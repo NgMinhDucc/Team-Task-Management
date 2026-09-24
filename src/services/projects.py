@@ -7,10 +7,10 @@ from database import SessionDep
 from models import Users
 from models import Projects, ProjectsAssignments
 
-def get_project(session: SessionDep, project_name: str):
+def get_project(session: SessionDep, project_id: int):
     project = session.exec(
         select(Projects)
-        .where(Projects.project_name == project_name)
+        .where(Projects.project_id == project_id)
     ).first()
     if project is None:
         raise HTTPException(
@@ -96,7 +96,6 @@ def get_role(session: SessionDep, user_id: int, project_id: int):
     ).first()
     return role
 
-# todo: write a dependency for the below function
 def search_projects(
     session: SessionDep,
     project_name: str,
