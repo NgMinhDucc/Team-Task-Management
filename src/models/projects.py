@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint
+from sqlmodel import SQLModel, Column, Field, func, TIMESTAMP, Relationship, UniqueConstraint, text, String
 from datetime import datetime
 from pydantic import field_validator
 from typing import TYPE_CHECKING, Optional
@@ -8,8 +8,16 @@ if TYPE_CHECKING:
     from .users import Users
 
 class ProjectBase(SQLModel):
-    project_name: str = Field(unique=True)
+    project_name: str
     project_description: str | None = None
+    project_visibility: str = Field(
+        default="PUBLIC",
+        sa_column=Column(
+            String,
+            server_default=text("'PUBLIC'"), # public, private
+            nullable=False
+        )
+    )
     project_deadline: datetime | None = Field( # note: can be set deadline some time after being created
         default=None,
         sa_column=Column(
@@ -68,6 +76,7 @@ class UpdateProject(SQLModel):
     project_name: str | None = None
     project_description: str | None = None
     project_deadline: datetime | None = None
+    project_visibility: str | None = None
     
     @field_validator("project_deadline", mode="after")
     @classmethod
