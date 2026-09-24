@@ -3,7 +3,16 @@ from fastapi import APIRouter, HTTPException, status
 from auth import CurrentUser
 from database import SessionDep
 from models import CreateProject, Projects, ProjectsAssignments, ProjectPublic, ProjectPaginationInfo, UpdateProject
-from services import get_project, check_project_existence, CurrentProject, CurrentProjectForUpdate, AllProjects, get_assigned_time, get_role, SearchedProjects
+from services import (
+    get_project,
+    check_project_existence,
+    CurrentProject,
+    CurrentProjectForUpdate,
+    AllProjects,
+    get_assigned_time,
+    get_role,
+    SearchedProjects
+)
 
 router = APIRouter(prefix="/projects")
 
@@ -40,7 +49,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
         session.refresh(new_project) # saved to Projects
         session.refresh(project_owned_by) # saved to ProjectsAssignments
         
-        new_project_public_data = get_project(session, new_project.project_name).model_dump()
+        new_project_public_data = get_project(session, new_project.project_id).model_dump()
         new_project_public = ProjectPublic(
             **new_project_public_data,
             project_assigned_at=get_assigned_time(session, current_user.user_id, new_project.project_id),
@@ -118,7 +127,7 @@ async def update_projects(
     
     return updated_project_public
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
@@ -135,51 +144,34 @@ async def delete_project(session: SessionDep, current_user: CurrentUser, current
         
     session.delete(current_project)
     session.commit()
-    
-    return "project deleted successfully"
 
-router.get("/my-projects/search", response_model=ProjectPublic)
-async def search_my_project(session: SessionDep, current_user: CurrentUser, my_project: CurrentProject):
-    if current_user.user_id is None or my_project.project_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User ID or Project ID is missing"
-        )
-
-    project_data = my_project.model_dump()
-    my_project_public = ProjectPublic(
-        **project_data,
-        project_assigned_at=get_assigned_time(session, current_user.user_id, my_project.project_id),
-        project_owner_name=current_user.user_name
-    )
-
-    return my_project_public
-
-
-@router.get("/search-projects")
-# searched_projects must be a list of Projects, with user_id and user_name
+@router.get("/{project_name}", response_model=ProjectPaginationInfo)
 async def search_project(session: SessionDep, current_user: CurrentUser, searched_projects: SearchedProjects):
     if searched_projects:
         cursor = searched_projects[-1][0].project_id
     else:
         cursor = None
-    
+
     all_searched_projects = []
     for project in searched_projects:
-        if project[0].project_id is None or project[1] is None:
+        if project[1] is None or project[0].project_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User ID or Project ID is missing"
             )
-            
+
         project_data = project[0].model_dump()
-        project_public = ProjectPublic(
+        pid = project[0].project_id
+        uid = project[1]
+        un = project[2]
+
+        searched_project_public = ProjectPublic(
             **project_data,
-            project_assigned_at=get_assigned_time(session, project[1], project[0].project_id), # put user_id and project_id in this function
-            project_owner_name=project[2] # user_name
+            project_assigned_at=get_assigned_time(session, uid, pid), # put userid and projectid into this function
+            project_owner_name=un # username
         )
-        all_searched_projects.append(project_public)
-        
+        all_searched_projects.append(searched_project_public)
+
     return ProjectPaginationInfo(
         data=all_searched_projects,
         next_cursor=cursor
