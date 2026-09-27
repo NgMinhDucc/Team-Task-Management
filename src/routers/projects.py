@@ -66,22 +66,18 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
 @router.get("/", response_model=ProjectPaginationInfo)
 async def get_projects(session: SessionDep, current_user: CurrentUser, all_projects: AllProjects):
     if all_projects:
-        cursor = all_projects[-1].project_id
+        cursor = all_projects[-1][0].project_id
     else:
         cursor = None
 
     all_projects_public = []
     for project in all_projects:
-        if current_user.user_id is None or project.project_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID or Project ID is missing"
-            )
+        project_data = project[0].model_dump()
+        pat = project[1]
 
-        project_data = project.model_dump()
         project_public = ProjectPublic(
             **project_data,
-            project_assigned_at=get_assigned_time(session, current_user.user_id, project.project_id),
+            project_assigned_at=pat,
             project_owner_name=current_user.user_name
         )
         all_projects_public.append(project_public)
@@ -145,7 +141,7 @@ async def delete_project(session: SessionDep, current_user: CurrentUser, current
     session.delete(current_project)
     session.commit()
 
-@router.get("/{project_name}", response_model=ProjectPaginationInfo)
+@router.get("/search", response_model=ProjectPaginationInfo)
 async def search_project(session: SessionDep, current_user: CurrentUser, searched_projects: SearchedProjects):
     if searched_projects:
         cursor = searched_projects[-1][0].project_id
@@ -154,31 +150,20 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
 
     all_searched_projects = []
     for project in searched_projects:
-        if project[1] is None or project[0].project_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID or Project ID is missing"
-            )
-
         project_data = project[0].model_dump()
-        pid = project[0].project_id
-        uid = project[1]
+        pat = project[1]
         un = project[2]
 
         searched_project_public = ProjectPublic(
             **project_data,
-            project_assigned_at=get_assigned_time(session, uid, pid), # put userid and projectid into this function
+            project_assigned_at=pat,
             project_owner_name=un # username
         )
         all_searched_projects.append(searched_project_public)
-
+        
     return ProjectPaginationInfo(
         data=all_searched_projects,
         next_cursor=cursor
     )
 
 # todo: add a add/delete members, assign roles, get member list endpoint
-# inprogress: designing the add_memeber endpoint
-@router.post("/my-projects/add-members")
-async def add_members(session: SessionDep, current_user: CurrentUser):
-    pass
