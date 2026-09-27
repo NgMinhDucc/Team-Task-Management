@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status, Query
 from typing import Annotated
-from sqlmodel import select, col
+from sqlmodel import select, col, and_, or_
+from sqlalchemy.orm import aliased
 
 from auth import CurrentUser
 from database import SessionDep
@@ -12,6 +13,7 @@ def get_project(session: SessionDep, project_id: int):
         select(Projects)
         .where(Projects.project_id == project_id)
     ).first()
+
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -58,7 +60,7 @@ def get_all_projects(
     limit: int = Query(3, ge=1, le=10)
 ): # note: pagination with cursor and limit
     query = select(
-        Projects
+        Projects, ProjectsAssignments.project_assigned_at
     ).join(
         ProjectsAssignments
     ).where(
@@ -74,7 +76,7 @@ def get_all_projects(
     
     return projects
 
-AllProjects = Annotated[list[Projects], Depends(get_all_projects)] # all_projects
+AllProjects = Annotated[list, Depends(get_all_projects)]
 
 def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
     assigned_time = session.exec(
@@ -98,20 +100,45 @@ def get_role(session: SessionDep, user_id: int, project_id: int):
 
 def search_projects(
     session: SessionDep,
+    current_user: CurrentUser,
     project_name: str,
     cursor: int | None = Query(None),
     limit: int = Query(3, ge=1, le=10)
 ):
+    CurrentUserAssignments = aliased(ProjectsAssignments)
+    OwnerAssignments = aliased(ProjectsAssignments)
+
     query = select(
-        Projects, Users.user_id, Users.user_name
-    ).join(
-        ProjectsAssignments,
-        col(ProjectsAssignments.project_id) == col(Projects.project_id)
-    ).join(
+        Projects, OwnerAssignments.project_assigned_at, Users.user_name
+    ).join( # note: JOIN 1: check current user's participation
+        CurrentUserAssignments,
+        and_(
+            col(CurrentUserAssignments.project_id) == col(Projects.project_id),
+            col(CurrentUserAssignments.user_id) == current_user.user_id
+        ),
+        isouter=True
+    ).join( # note: JOIN 2: find project's owner's name
+        OwnerAssignments,
+        and_(
+            col(OwnerAssignments.project_id) == col(Projects.project_id),
+            OwnerAssignments.role == "OWNER"
+        ),
+        isouter=True
+    ).join( # note: JOIN 3: join with User to query user_name
         Users,
-        col(ProjectsAssignments.user_id) == col(Users.user_id)
+        col(Users.user_id) == col(OwnerAssignments.user_id),
+        isouter=True
     ).where(
-        col(Projects.project_name).ilike(f"%{project_name}%")
+        and_(
+            col(Projects.project_name).ilike(f"%{project_name}%"),
+            or_(
+                Projects.project_visibility == "PUBLIC",
+                and_(
+                    Projects.project_visibility == "PRIVATE",
+                    col(CurrentUserAssignments.role).in_(["OWNER", "ADMIN", "MEMBER"])
+                )
+            )
+        )
     ).order_by(
         col(Projects.project_id)
     )
