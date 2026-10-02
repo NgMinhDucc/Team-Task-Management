@@ -1,3 +1,5 @@
+from operator import ge
+
 from fastapi import Depends, HTTPException, status, Query
 from typing import Annotated
 from sqlmodel import select, col, and_, or_
@@ -7,6 +9,7 @@ from auth import CurrentUser
 from database import SessionDep
 from models import Users
 from models import Projects, ProjectsAssignments
+
 
 def get_project(session: SessionDep, project_id: int):
     project = session.exec(
@@ -20,6 +23,7 @@ def get_project(session: SessionDep, project_id: int):
             detail="Project not found"
         )
     return project
+
 
 def check_project_existence(session: SessionDep, user_id: int, project_name: str):
     already_exist = session.exec(
@@ -37,6 +41,7 @@ def check_project_existence(session: SessionDep, user_id: int, project_name: str
 
 CurrentProject = Annotated[Projects, Depends(get_project)]
 
+
 # note: use pessimistic locking (lock first): lock a record's row to prevent another transaction from fixing its data
 def get_project_for_update(session: SessionDep, project_id: int):
     project = session.exec(
@@ -52,6 +57,7 @@ def get_project_for_update(session: SessionDep, project_id: int):
     return project
 
 CurrentProjectForUpdate = Annotated[Projects, Depends(get_project_for_update)]
+
 
 def get_all_projects(
     session: SessionDep,
@@ -78,6 +84,7 @@ def get_all_projects(
 
 AllProjects = Annotated[list, Depends(get_all_projects)]
 
+
 def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
     assigned_time = session.exec(
         select(ProjectsAssignments.project_assigned_at)
@@ -88,6 +95,7 @@ def get_assigned_time(session: SessionDep, user_id: int, project_id: int):
     ).first()
     return assigned_time
 
+
 def get_role(session: SessionDep, user_id: int, project_id: int):
     role = session.exec(
         select(ProjectsAssignments.role)
@@ -97,6 +105,7 @@ def get_role(session: SessionDep, user_id: int, project_id: int):
         )
     ).first()
     return role
+
 
 def search_projects(
     session: SessionDep,
@@ -150,3 +159,32 @@ def search_projects(
     return session.exec(query).all()
 
 SearchedProjects = Annotated[list, Depends(search_projects)]
+
+
+def get_members(
+    session: SessionDep,
+    current_project: CurrentProject,
+    cursor: int | None,
+    limit: int = Query(3, ge=1, le=10)
+):
+    query = select(
+        Users,
+        ProjectsAssignments.project_assigned_at,
+        ProjectsAssignments.role
+    ).join(
+        ProjectsAssignments,
+        col(ProjectsAssignments.user_id) == col(Users.user_id),
+        isouter=True
+    ).where(
+        col(ProjectsAssignments.project_id) == current_project.project_id
+    ).order_by(
+        col(Users.user_id)
+    )
+
+    if cursor:
+        query = query.where(col(Users.user_id) > cursor).limit(limit)
+    query = query.limit(limit)
+
+    return session.exec(query).all()
+
+MembersList = Annotated[list, Depends(get_members)]
