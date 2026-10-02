@@ -1,8 +1,20 @@
+# TODO: add a add/delete members, assign roles
+
 from fastapi import APIRouter, HTTPException, status
 
 from auth import CurrentUser
 from database import SessionDep
-from models import CreateProject, Projects, ProjectsAssignments, ProjectPublic, ProjectPaginationInfo, UpdateProject
+from models import (
+    CreateProject,
+    Projects,
+    ProjectsAssignments,
+    ProjectPublic,
+    ProjectPaginationInfo,
+    UpdateProject,
+    MemberPublic,
+    MemberPaginationInfo,
+    AddMember
+)
 from services import (
     get_project,
     check_project_existence,
@@ -11,10 +23,13 @@ from services import (
     AllProjects,
     get_assigned_time,
     get_role,
-    SearchedProjects
+    SearchedProjects,
+    MembersList
 )
 
+
 router = APIRouter(prefix="/projects")
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
 async def create_project(session: SessionDep, current_user: CurrentUser, create_project: CreateProject):
@@ -62,6 +77,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
             detail="Project already exists"
         )
 
+
 # note: add pagination to avoid bottleneck (cursor + limit)
 @router.get("/", response_model=ProjectPaginationInfo)
 async def get_projects(session: SessionDep, current_user: CurrentUser, all_projects: AllProjects):
@@ -86,6 +102,7 @@ async def get_projects(session: SessionDep, current_user: CurrentUser, all_proje
         data=all_projects_public,
         next_cursor=cursor
     )
+
 
 @router.patch("/{project_id}", response_model=ProjectPublic)
 async def update_projects(
@@ -123,6 +140,7 @@ async def update_projects(
     
     return updated_project_public
 
+
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
@@ -140,6 +158,7 @@ async def delete_project(session: SessionDep, current_user: CurrentUser, current
         
     session.delete(current_project)
     session.commit()
+
 
 @router.get("/search", response_model=ProjectPaginationInfo)
 async def search_project(session: SessionDep, current_user: CurrentUser, searched_projects: SearchedProjects):
@@ -166,4 +185,55 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
         next_cursor=cursor
     )
 
-# todo: add a add/delete members, assign roles, get member list endpoint
+
+@router.get("/{project_id}/members")
+async def get_members_list(
+    session: SessionDep,
+    current_user: CurrentUser,
+    current_project: CurrentProject,
+    members_list: MembersList
+):
+    if members_list:
+        cursor = members_list[-1][0].user_id
+    else:
+        cursor = None
+
+    all_members = []
+    for member in members_list:
+        member_data = member[0].model_dump()
+        pat = member[1]
+        role = member[2]
+
+        member_public = MemberPublic(
+            **member_data,
+            join_at=pat,
+            role=role
+        )
+        all_members.append(member_public)
+
+    return MemberPaginationInfo(
+        data=all_members,
+        next_cursor=cursor
+    )
+
+
+@router.post("{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)
+async def add_member(
+    session: SessionDep,
+    current_user: CurrentUser,
+    current_project: CurrentProject
+):
+    if current_user.user_id is None or current_project.project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID or Project ID is missing"
+        )
+
+    role = get_role(session, current_user.user_id, current_project.project_id)
+    if role != "OWNER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to perform this action"
+        )
+
+
