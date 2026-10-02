@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from .tasks import Tasks
     from .users import Users
+    
 
 class ProjectBase(SQLModel):
     project_name: str
@@ -31,7 +32,8 @@ class ProjectBase(SQLModel):
         if tz is None or tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
-    
+
+
 class Projects(ProjectBase, table=True):
     project_id: int | None = Field(default=None, primary_key=True)
     project_created_at: datetime | None = Field(
@@ -59,9 +61,11 @@ class Projects(ProjectBase, table=True):
         back_populates="ppa",
         cascade_delete=True
     )
-    
+
+
 class CreateProject(ProjectBase):
     pass
+
 
 class ProjectPublic(SQLModel):
     project_name: str
@@ -71,6 +75,7 @@ class ProjectPublic(SQLModel):
     project_last_updated_at: datetime | None
     project_assigned_at: datetime | None
     project_owner_name: str | None
+
 
 class UpdateProject(SQLModel):
     project_name: str | None = None
@@ -84,6 +89,7 @@ class UpdateProject(SQLModel):
         if tz.tzinfo is None:
             raise ValueError("doesn't have timezone information")
         return tz
+
 
 class ProjectsAssignments(SQLModel, table=True):
     # composite primary key (user_id, project_id)
@@ -110,6 +116,7 @@ class ProjectsAssignments(SQLModel, table=True):
         )
     )
     role: str # owner, admin, member
+
 
 class ProjectPaginationInfo(SQLModel):
     data: list[ProjectPublic]
