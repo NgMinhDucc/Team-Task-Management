@@ -24,7 +24,9 @@ from services import (
     get_assigned_time,
     get_role,
     SearchedProjects,
-    MembersList
+    MembersList,
+    check_user_existence,
+    check_member_participation
 )
 
 
@@ -80,7 +82,7 @@ async def create_project(session: SessionDep, current_user: CurrentUser, create_
 
 # note: add pagination to avoid bottleneck (cursor + limit)
 @router.get("/", response_model=ProjectPaginationInfo)
-async def get_projects(session: SessionDep, current_user: CurrentUser, all_projects: AllProjects):
+async def get_projects(current_user: CurrentUser, all_projects: AllProjects):
     if all_projects:
         cursor = all_projects[-1][0].project_id
     else:
@@ -190,7 +192,7 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
 async def get_members_list(
     session: SessionDep,
     current_user: CurrentUser,
-    current_project: CurrentProject,
+    # current_project: CurrentProject,
     members_list: MembersList
 ):
     if members_list:
@@ -217,23 +219,46 @@ async def get_members_list(
     )
 
 
-@router.post("{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)
-async def add_member(
+@router.post("{project_id}/members/{user_id}", status_code=status.HTTP_202_ACCEPTED)
+async def add_members(
     session: SessionDep,
     current_user: CurrentUser,
-    current_project: CurrentProject
+    current_project: CurrentProject,
+    user_id: int,
+    added_member: AddMember
 ):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User ID or Project ID is missing"
         )
-
+        
     role = get_role(session, current_user.user_id, current_project.project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to perform this action"
         )
-
-
+        
+    if check_user_existence(session, user_id):
+        if check_member_participation(session, user_id, current_project.project_id) == False:
+            added_member_data = added_member.model_dump()
+            new_member = ProjectsAssignments(
+                user_id=user_id,
+                project_id=current_project.project_id,
+                **added_member_data
+            )
+            
+            session.add(new_member)
+            session.commit()
+            session.refresh(new_member)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Member already joins"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not exist"
+        )
