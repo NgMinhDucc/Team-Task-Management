@@ -1,5 +1,3 @@
-from operator import ge
-
 from fastapi import Depends, HTTPException, status, Query
 from typing import Annotated
 from sqlmodel import select, col, and_, or_
