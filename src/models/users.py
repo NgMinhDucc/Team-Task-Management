@@ -50,9 +50,11 @@ class UserPublic(SQLModel):
     email: str
     account_created_at: datetime
 
+
 class UpdateUser(SQLModel):
     user_name: str | None = None
     email: str | None = None
+
 
 class ChangePassword(SQLModel):
     current_password: str  # note: must be checked with the current hashed one
@@ -69,6 +71,7 @@ class MemberPublic(SQLModel):
 class MemberPaginationInfo(SQLModel):
     data: list[MemberPublic]
     next_cursor: int | None
+
 
 class AddMember(SQLModel):
     role: str
