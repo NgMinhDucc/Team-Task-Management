@@ -75,3 +75,7 @@ class MemberPaginationInfo(SQLModel):
 
 class AddMember(SQLModel):
     role: str
+
+
+class AssignRole(SQLModel):
+    role: str
