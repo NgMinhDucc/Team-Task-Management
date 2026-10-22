@@ -47,6 +47,7 @@ def get_project_for_update(session: SessionDep, project_id: int):
         .where(Projects.project_id == project_id)
         .with_for_update()
     ).first()
+    
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -74,7 +75,7 @@ def get_all_projects(
     )
     
     if cursor:
-        projects = session.exec(query.where(col(ProjectsAssignments.project_id) > cursor).limit(limit)).all()
+        projects = session.exec(query.where(col(ProjectsAssignments.project_id) >= cursor).limit(limit)).all()
     else:
         projects = session.exec(query.limit(limit)).all()
     
@@ -151,7 +152,7 @@ def search_projects(
     )
     
     if cursor:
-        query = query.where(col(Projects.project_id) > cursor).limit(limit)
+        query = query.where(col(Projects.project_id) >= cursor).limit(limit)
     query = query.limit(limit)
     
     return session.exec(query).all()
@@ -180,9 +181,36 @@ def get_members(
     )
 
     if cursor:
-        query = query.where(col(Users.user_id) > cursor).limit(limit)
+        query = query.where(col(Users.user_id) >= cursor).limit(limit)
     query = query.limit(limit)
 
     return session.exec(query).all()
 
 MembersList = Annotated[list, Depends(get_members)]
+
+
+def get_member(session: SessionDep, user_id: int, project_id: int):
+    member_info = session.exec(
+        select(
+            ProjectsAssignments,
+            Users.user_name,
+            Users.email
+        )
+        .join(
+            Users,
+            col(Users.user_id) == col(ProjectsAssignments.user_id),
+            isouter=True
+        )
+        .where(
+            ProjectsAssignments.user_id == user_id,
+            ProjectsAssignments.project_id == project_id
+        )
+    ).first()
+    
+    if member_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+        
+    return member_info # ProjectsAssignments + user_name
