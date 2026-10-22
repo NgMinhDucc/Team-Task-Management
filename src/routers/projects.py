@@ -1,5 +1,3 @@
-# TODO: add a add/delete members, assign roles
-
 from fastapi import APIRouter, HTTPException, status
 
 from auth import CurrentUser
@@ -13,7 +11,8 @@ from models import (
     UpdateProject,
     MemberPublic,
     MemberPaginationInfo,
-    AddMember
+    AddMember,
+    AssignRole
 )
 from services import (
     get_project,
@@ -26,14 +25,16 @@ from services import (
     SearchedProjects,
     MembersList,
     check_user_existence,
-    check_member_participation
+    check_member_participation,
+    get_member
 )
 
 
 router = APIRouter(prefix="/projects")
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ProjectPublic)
+@router.post("/", response_model=ProjectPublic, status_code=status.HTTP_201_CREATED
+)
 async def create_project(session: SessionDep, current_user: CurrentUser, create_project: CreateProject):
     project_data = create_project.model_dump() # note: convert a model into a python dict
     new_project = Projects(**project_data)
@@ -106,7 +107,7 @@ async def get_projects(current_user: CurrentUser, all_projects: AllProjects):
     )
 
 
-@router.patch("/{project_id}", response_model=ProjectPublic)
+@router.patch("/{project_id}", response_model=ProjectPublic, status_code=status.HTTP_201_CREATED)
 async def update_projects(
     session: SessionDep,
     current_user: CurrentUser,
@@ -144,7 +145,11 @@ async def update_projects(
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
+async def delete_project(
+    session: SessionDep,
+    current_user: CurrentUser,
+    current_project: CurrentProject
+):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -188,11 +193,9 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
     )
 
 
-@router.get("/{project_id}/members")
+@router.get("/{project_id}/members", response_model=MemberPaginationInfo)
 async def get_members_list(
-    session: SessionDep,
     current_user: CurrentUser,
-    # current_project: CurrentProject,
     members_list: MembersList
 ):
     if members_list:
@@ -219,21 +222,21 @@ async def get_members_list(
     )
 
 
-@router.post("{project_id}/members/{user_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)
 async def add_members(
     session: SessionDep,
     current_user: CurrentUser,
-    current_project: CurrentProject,
     user_id: int,
+    project_id: int,
     added_member: AddMember
 ):
-    if current_user.user_id is None or current_project.project_id is None:
+    if current_user.user_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User ID or Project ID is missing"
         )
         
-    role = get_role(session, current_user.user_id, current_project.project_id)
+    role = get_role(session, current_user.user_id, project_id)
     if role != "OWNER":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -241,17 +244,29 @@ async def add_members(
         )
         
     if check_user_existence(session, user_id):
-        if check_member_participation(session, user_id, current_project.project_id) == False:
+        if check_member_participation(session, user_id, project_id) == False:
             added_member_data = added_member.model_dump()
             new_member = ProjectsAssignments(
                 user_id=user_id,
-                project_id=current_project.project_id,
+                project_id=project_id,
                 **added_member_data
             )
             
             session.add(new_member)
             session.commit()
             session.refresh(new_member)
+            
+            member_info = get_member(session, user_id, project_id)
+            member = member_info[0]
+            un = member_info[1]
+            mail = member_info[2]
+            
+            return MemberPublic(
+                user_name=un,
+                email=mail,
+                join_at=member.project_assigned_at,
+                role=member.role
+            )
         else:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -262,3 +277,71 @@ async def add_members(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User does not exist"
         )
+        
+        
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_members(
+    session: SessionDep,
+    current_user: CurrentUser,
+    user_id: int,
+    project_id: int
+):
+    if current_user.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is missing"
+        )
+        
+    role = get_role(session, current_user.user_id, project_id)
+    if role != "OWNER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to perform this action"
+        )
+        
+    member_info = get_member(session, user_id, project_id)
+    member = member_info[0] # ProjectsAssignments
+    
+    session.delete(member)
+    session.commit()
+    
+    
+@router.patch("/{project_id}/members/{user_id}/role", status_code=status.HTTP_201_CREATED)
+async def assign_role(
+    session: SessionDep,
+    current_user: CurrentUser,
+    user_id: int,
+    project_id: int,
+    new_role: AssignRole
+):
+    if current_user.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is missing"
+        )
+        
+    role = get_role(session, current_user.user_id, project_id)
+    if role != "OWNER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to perform this action"
+        )
+    
+    member_info = get_member(session, user_id, project_id)
+    member = member_info[0]
+    un = member_info[1]
+    mail = member_info[2]
+    
+    new_mem_role = new_role.model_dump()
+    member.sqlmodel_update(new_mem_role)
+    
+    session.add(member)
+    session.commit()
+    session.refresh(member)
+    
+    return MemberPublic(
+        user_name=un,
+        email=mail,
+        join_at=member.project_assigned_at,
+        role=member.role
+    )
