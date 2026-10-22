@@ -7,7 +7,8 @@ from .projects import(
     get_assigned_time,
     get_role,
     SearchedProjects,
-    MembersList
+    MembersList,
+    get_member
 )
 
 
