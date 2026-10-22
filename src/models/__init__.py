@@ -6,7 +6,8 @@ from .users import (
     ChangePassword,
     MemberPublic,
     MemberPaginationInfo,
-    AddMember
+    AddMember,
+    AssignRole
 )
 from .token import Token, TokenData
 from .projects import Projects, CreateProject, ProjectPublic, ProjectsAssignments, UpdateProject, ProjectPaginationInfo
