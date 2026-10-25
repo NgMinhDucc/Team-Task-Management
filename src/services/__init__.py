@@ -8,13 +8,14 @@ from .projects import(
     get_role,
     SearchedProjects,
     MembersList,
-    get_member
+    get_member,
+    check_member_participation
 )
 
 
 from .users import(
     check_user_existence,
-    check_member_participation
+    search_users
 )
 
 
