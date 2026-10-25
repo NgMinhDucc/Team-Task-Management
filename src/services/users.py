@@ -1,12 +1,11 @@
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Depends, Query
 from typing import Annotated
-from sqlmodel import select, col, and_, or_
-from sqlalchemy.orm import aliased
+from sqlmodel import select, col
 
-from auth import CurrentUser
 from database import SessionDep
-from models import Users
-from models import Projects, ProjectsAssignments
+from models import (
+    Users
+)
 
 def check_user_existence(session: SessionDep, user_id: int):
     exist = session.exec(
@@ -14,13 +13,22 @@ def check_user_existence(session: SessionDep, user_id: int):
     ).first()
     return bool(exist)
 
-def check_member_participation(session: SessionDep, user_id: int, project_id: int):
-    if check_user_existence(session, user_id):
-        already_participate = session.exec(
-            select(ProjectsAssignments)
-            .where(
-                ProjectsAssignments.user_id == user_id,
-                ProjectsAssignments.project_id == project_id
-            )
-        ).first()
-        return bool(already_participate)
+def search_users(
+    session: SessionDep,
+    user_name: str,
+    cursor: int | None,
+    limit: int = Query(3, ge=1, le=10)
+):
+    users = session.exec(
+        select(Users)
+        .where(
+            col(Users.user_name).ilike(f"%{user_name}%"),
+            col(Users.user_id) > cursor
+        )
+        .order_by(col(Users.user_id))
+        .limit(limit)
+    ).all()
+
+    return users
+
+SearchedUsers = Annotated[list[Users], Depends(search_users)]
