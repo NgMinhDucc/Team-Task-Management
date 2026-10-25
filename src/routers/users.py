@@ -1,25 +1,42 @@
+# TODO: add forgot password endpoint
+# TODO: add delete account endpoint
+
 from fastapi import APIRouter, HTTPException, status
 from datetime import timedelta
 
 from database import SessionDep
-from models import Users, CreateUser, UserPublic, UpdateUser, ChangePassword
-from models import Token
+from models import (
+    Users,
+    CreateUser,
+    UserPublic,
+    UpdateUser,
+    ChangePassword,
+    UserPaginationInfo,
+    Token
+)
+from services.users import SearchedUsers
 from utils import hashing
-from auth import FormData, authenticate_user, create_access_token, verify_password, CurrentUser, SearchedUser
+from auth import FormData, authenticate_user, create_access_token, verify_password, CurrentUser
+
 
 router = APIRouter(prefix="/users")
 
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def create_user(create_user: CreateUser, session: SessionDep):
-    user_data = create_user.model_dump() # turn model into a dict 
+async def create_user(session: SessionDep, create_user: CreateUser):
+    user_data = create_user.model_dump() # turn model into a dict
     hashed_password = hashing(user_data.pop("hashed_password"))
     
-    new_user = Users(**user_data, hashed_password=hashed_password)
+    new_user = Users(
+        **user_data,
+        hashed_password=hashed_password
+    )
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
     
-    return "account created successfully"
+    return { "message": "Welcome " + create_user.user_name + "!" }
+
 
 @router.post("/login")
 async def login_for_access_token(session: SessionDep, form_data: FormData) -> Token:
@@ -37,14 +54,17 @@ async def login_for_access_token(session: SessionDep, form_data: FormData) -> To
     
     return Token(
         access_token=access_token,
-        token_type="Bearer"
+        token_type="Bearer",
+        message="Welcome back " + form_data.username + "!"
     )
+    
     
 @router.get("/me", response_model=UserPublic)
 async def get_me(current_user: CurrentUser):
     return current_user
 
-@router.patch("/me/update-me")
+
+@router.patch("/me", response_model=UserPublic)
 async def update_me(session: SessionDep, current_user: CurrentUser, update_user: UpdateUser):
     updated_data = update_user.model_dump(exclude_unset=True)
     current_user.sqlmodel_update(updated_data)
@@ -53,7 +73,8 @@ async def update_me(session: SessionDep, current_user: CurrentUser, update_user:
     session.commit()
     session.refresh(current_user)
     
-    return "account updated successfully"
+    return current_user
+
 
 @router.patch("/me/change-password")
 async def change_password(session: SessionDep, current_user: CurrentUser, change_password: ChangePassword):
@@ -69,10 +90,22 @@ async def change_password(session: SessionDep, current_user: CurrentUser, change
     session.commit()
     session.refresh(current_user)
     
-    return "password changed successfully"
+    return { "message": "Password changed successfully" }
 
-@router.get("/search-user/{user_name}", response_model=UserPublic)
-async def search(current_user: CurrentUser, searched_user: SearchedUser):
-    return searched_user
 
-# todo: add forgot password api and delete account api
+@router.get("/search", response_model=UserPaginationInfo)
+async def search(session: SessionDep, current_user: CurrentUser, searched_users: SearchedUsers):
+    if searched_users:
+        cursor = searched_users[-1].user_id
+    else:
+        cursor = None
+
+    users = []
+    for user in searched_users:
+        user_data = user.model_dump()
+        users.append(UserPublic(**user_data))
+
+    return UserPaginationInfo(
+        data=users,
+        next_cursor=cursor
+    )
