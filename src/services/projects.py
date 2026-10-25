@@ -5,8 +5,12 @@ from sqlalchemy.orm import aliased
 
 from auth import CurrentUser
 from database import SessionDep
-from models import Users
-from models import Projects, ProjectsAssignments
+from .users import check_user_existence
+from models import (
+    Users,
+    Projects,
+    ProjectsAssignments
+)
 
 
 def get_project(session: SessionDep, project_id: int):
@@ -75,7 +79,7 @@ def get_all_projects(
     )
     
     if cursor:
-        projects = session.exec(query.where(col(ProjectsAssignments.project_id) >= cursor).limit(limit)).all()
+        projects = session.exec(query.where(col(ProjectsAssignments.project_id) > cursor).limit(limit)).all()
     else:
         projects = session.exec(query.limit(limit)).all()
     
@@ -152,12 +156,24 @@ def search_projects(
     )
     
     if cursor:
-        query = query.where(col(Projects.project_id) >= cursor).limit(limit)
+        query = query.where(col(Projects.project_id) > cursor).limit(limit)
     query = query.limit(limit)
     
     return session.exec(query).all()
 
 SearchedProjects = Annotated[list, Depends(search_projects)]
+
+
+def check_member_participation(session: SessionDep, user_id: int, project_id: int):
+    if check_user_existence(session, user_id):
+        already_participate = session.exec(
+            select(ProjectsAssignments)
+            .where(
+                ProjectsAssignments.user_id == user_id,
+                ProjectsAssignments.project_id == project_id
+            )
+        ).first()
+        return bool(already_participate)
 
 
 def get_members(
@@ -181,7 +197,7 @@ def get_members(
     )
 
     if cursor:
-        query = query.where(col(Users.user_id) >= cursor).limit(limit)
+        query = query.where(col(Users.user_id) > cursor).limit(limit)
     query = query.limit(limit)
 
     return session.exec(query).all()
