@@ -4,12 +4,31 @@ from .users import (
     UserPublic,
     UpdateUser,
     ChangePassword,
+    UserPaginationInfo
+)
+from .token import (
+    Token,
+    TokenData
+)
+from .projects import (
+    Projects,
+    CreateProject,
+    ProjectPublic,
+    ProjectsAssignments,
+    UpdateProject,
+    ProjectPaginationInfo,
     MemberPublic,
     MemberPaginationInfo,
     AddMember,
     AssignRole
 )
-from .token import Token, TokenData
-from .projects import Projects, CreateProject, ProjectPublic, ProjectsAssignments, UpdateProject, ProjectPaginationInfo
-from .tasks import Tasks, CreateTask, UpdateTask, TaskPublic
-from .comments import Comments, CreateComment
+from .tasks import (
+    Tasks,
+    CreateTask,
+    UpdateTask,
+    TaskPublic
+)
+from .comments import (
+    Comments,
+    CreateComment
+)
