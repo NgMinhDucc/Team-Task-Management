@@ -61,21 +61,6 @@ class ChangePassword(SQLModel):
     new_password: str
 
 
-class MemberPublic(SQLModel):
-    user_name: str
-    email: str
-    join_at: datetime
-    role: str
-
-
-class MemberPaginationInfo(SQLModel):
-    data: list[MemberPublic]
+class UserPaginationInfo(SQLModel):
+    data: list[UserPublic]
     next_cursor: int | None
-
-
-class AddMember(SQLModel):
-    role: str
-
-
-class AssignRole(SQLModel):
-    role: str
