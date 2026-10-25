@@ -33,8 +33,7 @@ from services import (
 router = APIRouter(prefix="/projects")
 
 
-@router.post("/", response_model=ProjectPublic, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=ProjectPublic, status_code=status.HTTP_201_CREATED)
 async def create_project(session: SessionDep, current_user: CurrentUser, create_project: CreateProject):
     project_data = create_project.model_dump() # note: convert a model into a python dict
     new_project = Projects(**project_data)
@@ -145,11 +144,7 @@ async def update_projects(
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
-    session: SessionDep,
-    current_user: CurrentUser,
-    current_project: CurrentProject
-):
+async def delete_project(session: SessionDep, current_user: CurrentUser, current_project: CurrentProject):
     if current_user.user_id is None or current_project.project_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -168,7 +163,7 @@ async def delete_project(
 
 
 @router.get("/search", response_model=ProjectPaginationInfo)
-async def search_project(session: SessionDep, current_user: CurrentUser, searched_projects: SearchedProjects):
+async def search_project(current_user: CurrentUser, searched_projects: SearchedProjects):
     if searched_projects:
         cursor = searched_projects[-1][0].project_id
     else:
@@ -194,10 +189,7 @@ async def search_project(session: SessionDep, current_user: CurrentUser, searche
 
 
 @router.get("/{project_id}/members", response_model=MemberPaginationInfo)
-async def get_members_list(
-    current_user: CurrentUser,
-    members_list: MembersList
-):
+async def get_members_list(current_user: CurrentUser, members_list: MembersList):
     if members_list:
         cursor = members_list[-1][0].user_id
     else:
