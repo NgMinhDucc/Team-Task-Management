@@ -77,5 +77,3 @@ def get_current_user(session: SessionDep, token: Tokenn):
 FormData = Annotated[OAuth2PasswordRequestForm, Depends()]
 
 CurrentUser = Annotated[Users, Depends(get_current_user)]
-
-SearchedUser = Annotated[Users, Depends(get_user)]
