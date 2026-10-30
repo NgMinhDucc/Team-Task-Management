@@ -3,7 +3,7 @@ from typing import Annotated
 from sqlmodel import select, col, and_, or_
 from sqlalchemy.orm import aliased
 
-from auth import CurrentUser
+from authen import CurrentUser
 from database import SessionDep
 from .users import check_user_existence
 from models import (
