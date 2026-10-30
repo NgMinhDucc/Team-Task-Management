@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from auth import CurrentUser
+from authen import CurrentUser
 from database import SessionDep
 from models import Comments, CreateComment
 

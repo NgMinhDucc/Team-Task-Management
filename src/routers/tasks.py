@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-import auth
+from authen import CurrentUser
 from services import CurrentTask
 from database import SessionDep
 from models import Tasks, CreateTask, UpdateTask, TaskPublic
@@ -8,7 +8,7 @@ from models import Tasks, CreateTask, UpdateTask, TaskPublic
 router = APIRouter(prefix="/tasks")
 
 @router.post("/create-tasks")
-async def create_tasks(session: SessionDep, current_user: auth.CurrentUser, create_task: CreateTask):
+async def create_tasks(session: SessionDep, current_user: CurrentUser, create_task: CreateTask):
     task_data = create_task.model_dump()
     new_task = Tasks(**task_data)
     
@@ -21,7 +21,7 @@ async def create_tasks(session: SessionDep, current_user: auth.CurrentUser, crea
 @router.patch("/update-tasks/{task_name}")
 async def update_task(
     session: SessionDep,
-    current_user: auth.CurrentUser,
+    current_user: CurrentUser,
     current_task: CurrentTask,
     update_task: UpdateTask
 ):
@@ -35,5 +35,5 @@ async def update_task(
     return "task updated successfully"
 
 @router.get("/my-tasks/{task_name}", response_model=TaskPublic)
-async def get_task(current_user: auth.CurrentUser, current_task: CurrentTask):
+async def get_task(current_user: CurrentUser, current_task: CurrentTask):
     return current_task
