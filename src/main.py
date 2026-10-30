@@ -5,6 +5,7 @@ import routers.users as users
 import routers.projects as projects
 import routers.tasks as tasks
 import routers.comments as comments
+import routers.auth as auth
 
 create_database_and_tables()
 
@@ -13,3 +14,4 @@ app.include_router(users.router)
 app.include_router(projects.router)
 app.include_router(tasks.router)
 app.include_router(comments.router)
+app.include_router(auth.router)
