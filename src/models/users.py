@@ -57,10 +57,18 @@ class UpdateUser(SQLModel):
 
 
 class ChangePassword(SQLModel):
-    current_password: str  # note: must be checked with the current hashed one
+    current_password: str  # NOTE: must be checked with the current hashed one
     new_password: str
 
 
 class UserPaginationInfo(SQLModel):
     data: list[UserPublic]
     next_cursor: int | None
+
+
+class ForgotPassword(SQLModel):
+    email: EmailStr
+    
+    
+class ResetPassword(SQLModel):
+    token: str
