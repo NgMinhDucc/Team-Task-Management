@@ -15,7 +15,7 @@ from .projects import(
 
 from .users import(
     check_user_existence,
-    search_users
+    SearchedUsers
 )
 
 
